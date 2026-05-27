@@ -42,6 +42,18 @@ class GameSetupRules {
   }
 }
 
+class GameSetup {
+  const GameSetup({
+    required this.playerNames,
+    required this.initialCards,
+    required this.ghostCopies,
+  });
+
+  final List<String> playerNames;
+  final int initialCards;
+  final int ghostCopies;
+}
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -222,12 +234,17 @@ class _SetupScreenState extends State<SetupScreen> {
     final ghostCopies =
     GameSetupRules.ghostCopiesForPlayerCount(playerCount);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Partida criada: $playerCount jogadores, '
-              '$initialCards cartas iniciais, '
-              '$ghostCopies Fantasmas.',
+    final setup = GameSetup(
+      playerNames: playerNames,
+      initialCards: initialCards,
+      ghostCopies: ghostCopies,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PassDeviceScreen(
+          setup: setup,
+          currentPlayerIndex: 0,
         ),
       ),
     );
@@ -412,6 +429,98 @@ class SetupSummaryRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class PassDeviceScreen extends StatelessWidget {
+  const PassDeviceScreen({
+    super.key,
+    required this.setup,
+    required this.currentPlayerIndex,
+  });
+
+  final GameSetup setup;
+  final int currentPlayerIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentPlayerName = setup.playerNames[currentPlayerIndex];
+
+    return Scaffold(
+      body: ShadowBackground(
+        child: SafeArea(
+          child: Center(
+            child: Card(
+              color: const Color(0xFF221229),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.phone_android,
+                      size: 64,
+                      color: Color(0xFFE7C76F),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Passe o celular para',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currentPlayerName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFE7C76F),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '${setup.initialCards} cartas iniciais • '
+                          '${setup.ghostCopies} Fantasmas',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white60,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Em breve: mão de $currentPlayerName',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: Text(
+                            'Ver minha mão',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

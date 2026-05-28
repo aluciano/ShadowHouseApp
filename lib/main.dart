@@ -201,6 +201,10 @@ class GameState {
   bool roundFinished;
 
   Player get currentPlayer => players[currentPlayerIndex];
+
+  void moveToNextPlayer() {
+    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+  }
 }
 
 class CardDatabase {
@@ -714,6 +718,18 @@ GameState createInitialGameState(GameSetup setup) {
     initialCards: setup.initialCards,
     ghostCopies: setup.ghostCopies,
   );
+}
+
+void playCard({
+  required GameState gameState,
+  required GameCard card,
+}) {
+  final currentPlayer = gameState.currentPlayer;
+
+  currentPlayer.hand.removeWhere((item) => item.id == card.id);
+  currentPlayer.playedCards.add(card);
+
+  gameState.moveToNextPlayer();
 }
 
 class HomeScreen extends StatelessWidget {
@@ -1268,6 +1284,23 @@ class PassDeviceScreen extends StatelessWidget {
                         color: Colors.white60,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Cartas na mão: ${currentPlayer.hand.length}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white60,
+                      ),
+                    ),
+                    Text(
+                      'Cartas à frente: ${currentPlayer.playedCards.length}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white60,
+                      ),
+                    ),
                     const SizedBox(height: 32),
                     SizedBox(
                       width: double.infinity,
@@ -1351,13 +1384,69 @@ class HandScreen extends StatelessWidget {
                     ),
                     subtitle: Text(card.shortText),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Em breve: jogar ${card.name}',
+                    onTap: () async {
+                      final isFirstTurnOfRound = gameState.players.every(
+                            (player) => player.playedCards.isEmpty,
+                      );
+
+                      final isFirstSceneCard = card.templateId == 'primeiro_na_cena';
+
+                      if (isFirstTurnOfRound && !isFirstSceneCard) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('A primeira carta da rodada deve ser Primeiro na Cena.'),
+                          ),
+                        );
+
+                        return;
+                      }
+
+                      final shouldPlay = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: Text(card.name),
+                            content: Text(
+                              '${card.shortText}\n\nDeseja jogar esta carta?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop(false);
+                                },
+                                child: const Text('Cancelar'),
+                              ),
+                              FilledButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop(true);
+                                },
+                                child: const Text('Jogar'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (shouldPlay != true) {
+                        return;
+                      }
+
+                      playCard(
+                        gameState: gameState,
+                        card: card,
+                      );
+
+                      if (!context.mounted) {
+                        return;
+                      }
+
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => PassDeviceScreen(
+                            gameState: gameState,
                           ),
                         ),
+                            (route) => route.isFirst,
                       );
                     },
                   ),

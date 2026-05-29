@@ -107,14 +107,33 @@ void playCard({
   currentPlayer.hand.removeWhere((item) => item.id == card.id);
   currentPlayer.playedCards.add(card);
 
+  final accompliceWasPlayed = card.templateId == 'cumplice';
+
+  if (accompliceWasPlayed) {
+    currentPlayer.isAccomplice = true;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
+    final winners = gameState.players.where((player) {
+      return player.id == currentPlayer.id || player.isAccomplice;
+    }).toList();
+
+    for (final player in winners) {
+      player.score += 2;
+    }
+
+    final scoringSummary = winners.map((player) {
+      return '${player.name}: +2 pontos';
+    }).join('\n');
+
     gameState.roundFinished = true;
     gameState.roundResult = RoundResult(
       type: RoundResultType.guiltyWins,
       winner: currentPlayer,
       reason: '${currentPlayer.name} jogou o Culpado como última carta da mão.',
+      scoringSummary: scoringSummary,
     );
 
     return;

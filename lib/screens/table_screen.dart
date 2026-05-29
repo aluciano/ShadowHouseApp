@@ -80,11 +80,23 @@ class TableScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            Text(
-                              '${player.hand.length} na mão',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${player.hand.length} na mão',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                Text(
+                                  '${player.score} ponto${player.score == 1 ? '' : 's'}',
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),

@@ -87,6 +87,19 @@ class HandScreen extends StatelessWidget {
                         return;
                       }
 
+                      final isGuiltyCard = card.templateId == 'culpado';
+                      final isLastCardInHand = currentPlayer.hand.length == 1;
+
+                      if (isGuiltyCard && !isLastCardInHand) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Você só pode jogar o Culpado se ele for a última carta da sua mão.'),
+                          ),
+                        );
+
+                        return;
+                      }
+
                       final shouldPlay = await showDialog<bool>(
                         context: context,
                         builder: (context) {

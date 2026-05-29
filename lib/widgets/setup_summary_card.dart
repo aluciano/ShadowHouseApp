@@ -39,11 +39,13 @@ class SetupSummaryCard extends StatelessWidget {
               label: 'Cartas iniciais',
               value: '${recommendation.initialCards}',
             ),
-            const Divider(),
-            SetupSummaryRow(
-              label: 'Fantasmas do Visconde',
-              value: '${recommendation.ghostCopies}',
-            ),
+            if (recommendation.ghostCopies > 0) ...[
+              const Divider(),
+              SetupSummaryRow(
+                label: 'Fantasmas do Visconde',
+                value: '${recommendation.ghostCopies}',
+              ),
+            ],
             if (recommendation.extraSilenceCopies > 0) ...[
               const Divider(),
               SetupSummaryRow(

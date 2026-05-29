@@ -140,6 +140,30 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 const SizedBox(height: 32),
                 const Text(
+                  'Modo de jogo',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...GameMode.values.map((mode) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GameModeOptionCard(
+                      title: GameSetupRules.titleForMode(mode),
+                      description: GameSetupRules.descriptionForMode(mode),
+                      selected: selectedGameMode == mode,
+                      onTap: () {
+                        setState(() {
+                          selectedGameMode = mode;
+                        });
+                      },
+                    ),
+                  );
+                }),
+                const SizedBox(height: 24),
+                const Text(
                   'Quantidade de jogadores',
                   style: TextStyle(
                     fontSize: 18,
@@ -163,30 +187,7 @@ class _SetupScreenState extends State<SetupScreen> {
                     );
                   }),
                 ),
-                const SizedBox(height: 32),
-                const Text(
-                  'Modo de jogo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...GameMode.values.map((mode) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GameModeOptionCard(
-                      title: GameSetupRules.titleForMode(mode),
-                      description: GameSetupRules.descriptionForMode(mode),
-                      selected: selectedGameMode == mode,
-                      onTap: () {
-                        setState(() {
-                          selectedGameMode = mode;
-                        });
-                      },
-                    ),
-                  );
-                }),
+                const SizedBox(height: 24),
                 SetupSummaryCard(
                   playerCount: playerCount,
                   gameMode: selectedGameMode,

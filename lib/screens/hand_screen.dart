@@ -5,6 +5,7 @@ import '../models/game_state.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'table_screen.dart';
+import 'round_result_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -136,6 +137,19 @@ class HandScreen extends StatelessWidget {
                       );
 
                       if (!context.mounted) {
+                        return;
+                      }
+
+                      if (gameState.roundFinished) {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => RoundResultScreen(
+                              gameState: gameState,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
                         return;
                       }
 

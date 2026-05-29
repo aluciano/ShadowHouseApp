@@ -1,5 +1,6 @@
 import 'game_card.dart';
 import 'player.dart';
+import 'round_result.dart';
 
 class GameState {
   GameState({
@@ -9,6 +10,7 @@ class GameState {
     required this.initialCards,
     required this.ghostCopies,
     this.roundFinished = false,
+    this.roundResult,
   });
 
   final List<Player> players;
@@ -18,6 +20,7 @@ class GameState {
   final int initialCards;
   final int ghostCopies;
   bool roundFinished;
+  RoundResult? roundResult;
 
   Player get currentPlayer => players[currentPlayerIndex];
 

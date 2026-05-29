@@ -7,6 +7,8 @@ import '../models/game_state.dart';
 import '../models/game_setup.dart';
 import '../models/player.dart';
 import '../models/player_type.dart';
+import '../models/round_result.dart';
+import '../models/round_result_type.dart';
 
 GameState createInitialGameState(GameSetup setup) {
   final random = Random();
@@ -104,6 +106,19 @@ void playCard({
 
   currentPlayer.hand.removeWhere((item) => item.id == card.id);
   currentPlayer.playedCards.add(card);
+
+  final guiltyWasPlayed = card.templateId == 'culpado';
+
+  if (guiltyWasPlayed) {
+    gameState.roundFinished = true;
+    gameState.roundResult = RoundResult(
+      type: RoundResultType.guiltyWins,
+      winner: currentPlayer,
+      reason: '${currentPlayer.name} jogou o Culpado como última carta da mão.',
+    );
+
+    return;
+  }
 
   gameState.moveToNextPlayer();
 }

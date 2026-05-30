@@ -121,22 +121,24 @@ void playCard({
 
   if (accompliceWasPlayed) {
     currentPlayer.isAccomplice = true;
-
-    // O turno só avança depois que o efeito do Cúmplice for resolvido.
     return;
   }
 
   final poisonedCupWasPlayed = card.templateId == 'taca_envenenada';
 
   if (poisonedCupWasPlayed) {
-    // O turno só avança depois que o efeito da Taça Envenenada for resolvido.
     return;
   }
 
   final detectiveWasPlayed = card.templateId == 'detetive';
 
   if (detectiveWasPlayed) {
-    // O turno só avança depois que o efeito do Detetive for resolvido.
+    return;
+  }
+
+  final totoWasPlayed = card.templateId == 'toto';
+
+  if (totoWasPlayed) {
     return;
   }
 
@@ -304,6 +306,78 @@ void finishRoundWithDetectiveWin({
     reason: detectiveCanScore
         ? '${detectivePlayer.name} revelou corretamente o Culpado.'
         : '${detectivePlayer.name} revelou o Culpado, mas já era Cúmplice e não venceu a rodada.',
+    scoringSummary: scoringSummary,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+}
+
+void resolveTotoEffect({
+  required GameState gameState,
+  required Player totoPlayer,
+  required Player targetPlayer,
+  required GameCard revealedCard,
+}) {
+  final revealedGuilty = revealedCard.templateId == 'culpado';
+
+  if (revealedGuilty) {
+    finishRoundWithTotoWin(
+      gameState: gameState,
+      totoPlayer: totoPlayer,
+      guiltyPlayer: targetPlayer,
+    );
+
+    return;
+  }
+
+  gameState.moveToNextPlayer();
+}
+
+void finishRoundWithTotoWin({
+  required GameState gameState,
+  required Player totoPlayer,
+  required Player guiltyPlayer,
+}) {
+  final totoCanScore = !totoPlayer.isAccomplice;
+
+  final roundPointsByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    roundPointsByPlayerId[player.id] = 0;
+  }
+
+  if (totoCanScore) {
+    totoPlayer.score += 3;
+    roundPointsByPlayerId[totoPlayer.id] = 3;
+  }
+
+  for (final player in gameState.players) {
+    final isTotoPlayer = player.id == totoPlayer.id;
+    final isGuilty = player.id == guiltyPlayer.id;
+    final isAccomplice = player.isAccomplice;
+
+    if (!isTotoPlayer && !isGuilty && !isAccomplice) {
+      player.score += 1;
+      roundPointsByPlayerId[player.id] = 1;
+    }
+  }
+
+  final scoringSummary = gameState.players.map((player) {
+    final points = roundPointsByPlayerId[player.id] ?? 0;
+
+    if (points == 0) {
+      return '${player.name}: 0 pontos';
+    }
+
+    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+  }).join('\n');
+
+  gameState.roundFinished = true;
+  gameState.roundResult = RoundResult(
+    type: RoundResultType.totoWins,
+    winner: totoPlayer,
+    reason: totoCanScore
+        ? '${totoPlayer.name} revelou o Culpado com Totó.'
+        : '${totoPlayer.name} revelou o Culpado com Totó, mas já era Cúmplice e não venceu a rodada.',
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );

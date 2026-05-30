@@ -8,6 +8,7 @@ import 'table_screen.dart';
 import 'round_result_screen.dart';
 import 'forced_discard_effect_screen.dart';
 import 'detective_effect_screen.dart';
+import 'toto_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -197,6 +198,20 @@ class HandScreen extends StatelessWidget {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                             builder: (_) => DetectiveEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'toto') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => TotoEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
                             ),

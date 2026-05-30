@@ -126,6 +126,13 @@ void playCard({
     return;
   }
 
+  final poisonedCupWasPlayed = card.templateId == 'taca_envenenada';
+
+  if (poisonedCupWasPlayed) {
+    // O turno só avança depois que o efeito da Taça Envenenada for resolvido.
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -141,23 +148,26 @@ void playCard({
   gameState.moveToNextPlayer();
 }
 
-void resolveAccompliceEffect({
+void resolveForcedDiscardEffect({
   required GameState gameState,
   required Player targetPlayer,
   required GameCard cardToDiscard,
+  required String effectName,
 }) {
   final wasLastCardInHand = targetPlayer.hand.length == 1;
   final guiltyWasDiscarded = cardToDiscard.templateId == 'culpado';
 
   targetPlayer.hand.removeWhere((card) => card.id == cardToDiscard.id);
-  targetPlayer.playedCards.add(cardToDiscard);
+  targetPlayer.playedCards.add(
+    cardToDiscard.copyWith(wasDiscarded: true),
+  );
 
   if (guiltyWasDiscarded && wasLastCardInHand) {
     finishRoundWithGuiltyWin(
       gameState: gameState,
       guiltyPlayer: targetPlayer,
       reason:
-      '${targetPlayer.name} descartou o Culpado como última carta da mão pelo efeito de Cúmplice.',
+      '${targetPlayer.name} descartou o Culpado como última carta da mão pelo efeito de $effectName.',
     );
 
     return;

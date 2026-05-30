@@ -67,6 +67,15 @@ class TableScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'Cartas riscadas foram descartadas e não têm efeito.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white60,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
               const SizedBox(height: 24),
               ...gameState.players.map((player) {
                 final isCurrentPlayer = player.id == gameState.currentPlayer.id;
@@ -164,16 +173,32 @@ class TableScreen extends StatelessWidget {
                             spacing: 8,
                             runSpacing: 8,
                             children: player.playedCards.map((card) {
+                              final wasDiscarded = card.wasDiscarded;
+
                               return Chip(
-                                avatar: const Icon(
-                                  Icons.visibility,
+                                avatar: Icon(
+                                  wasDiscarded ? Icons.block : Icons.visibility,
                                   size: 16,
-                                  color: Color(0xFFE7C76F),
+                                  color: wasDiscarded
+                                      ? Colors.white70
+                                      : const Color(0xFFE7C76F),
                                 ),
-                                label: Text(card.name),
-                                backgroundColor: const Color(0xFF120818),
-                                side: const BorderSide(
-                                  color: Color(0xFFE7C76F),
+                                label: Text(
+                                  card.name,
+                                  style: TextStyle(
+                                    color: wasDiscarded ? Colors.white70 : Colors.white,
+                                    decoration: wasDiscarded
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                                backgroundColor: wasDiscarded
+                                    ? const Color(0xFF2B2B35)
+                                    : const Color(0xFF120818),
+                                side: BorderSide(
+                                  color: wasDiscarded
+                                      ? Colors.white38
+                                      : const Color(0xFFE7C76F),
                                 ),
                               );
                             }).toList(),

@@ -221,7 +221,7 @@ class CardDatabase {
       name: 'A Taça Envenenada',
       type: CardType.manipulation,
       shortText:
-      'Escolha um jogador. Ele descarta uma carta virada para cima e compra uma carta.',
+      'Escolha outro jogador. Esse jogador descarta uma carta da própria mão virada para cima e depois compra uma carta.',
       quantity: 1,
     );
 

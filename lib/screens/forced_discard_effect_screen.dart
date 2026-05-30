@@ -8,21 +8,28 @@ import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'round_result_screen.dart';
 
-class AccompliceEffectScreen extends StatefulWidget {
-  const AccompliceEffectScreen({
+class ForcedDiscardEffectScreen extends StatefulWidget {
+  const ForcedDiscardEffectScreen({
     super.key,
     required this.gameState,
     required this.actingPlayerId,
+    required this.effectTitle,
+    required this.effectName,
+    required this.instructionText,
   });
 
   final GameState gameState;
   final String actingPlayerId;
+  final String effectTitle;
+  final String effectName;
+  final String instructionText;
 
   @override
-  State<AccompliceEffectScreen> createState() => _AccompliceEffectScreenState();
+  State<ForcedDiscardEffectScreen> createState() =>
+      _ForcedDiscardEffectScreenState();
 }
 
-class _AccompliceEffectScreenState extends State<AccompliceEffectScreen> {
+class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
   Player? selectedTarget;
   bool targetConfirmedPrivacy = false;
 
@@ -41,7 +48,7 @@ class _AccompliceEffectScreenState extends State<AccompliceEffectScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Resolver Cúmplice'),
+        title: Text(widget.effectTitle),
         backgroundColor: const Color(0xFF120818),
       ),
       body: ShadowBackground(
@@ -49,9 +56,9 @@ class _AccompliceEffectScreenState extends State<AccompliceEffectScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                'Efeito do Cúmplice',
-                style: TextStyle(
+              Text(
+                widget.effectTitle,
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFE7C76F),
@@ -59,8 +66,7 @@ class _AccompliceEffectScreenState extends State<AccompliceEffectScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${actingPlayer.name} deve escolher outro jogador. '
-                    'Esse jogador descarta uma carta da própria mão e compra outra do monte.',
+                '${actingPlayer.name}: ${widget.instructionText}',
                 style: const TextStyle(
                   color: Colors.white70,
                 ),
@@ -132,10 +138,11 @@ class _AccompliceEffectScreenState extends State<AccompliceEffectScreen> {
                         return;
                       }
 
-                      resolveAccompliceEffect(
+                      resolveForcedDiscardEffect(
                         gameState: widget.gameState,
                         targetPlayer: target,
                         cardToDiscard: card,
+                        effectName: widget.effectName,
                       );
 
                       if (widget.gameState.roundFinished) {
@@ -185,7 +192,7 @@ class _NoAvailableTargetCard extends StatelessWidget {
         child: Column(
           children: [
             const Text(
-              'Não há jogadores com cartas na mão para escolher.',
+              'Não há outros jogadores com cartas na mão para escolher.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white70,
@@ -366,7 +373,7 @@ class _DiscardSelectionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Passe o celular para ${targetPlayer.name}',
+              'Carta de ${targetPlayer.name}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -375,7 +382,7 @@ class _DiscardSelectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Este jogador deve escolher uma carta da própria mão para descartar.',
+              'Escolha uma carta da própria mão para descartar.',
               style: TextStyle(
                 color: Colors.white70,
               ),
@@ -404,7 +411,7 @@ class _DiscardSelectionCard extends StatelessWidget {
               onPressed: onBack,
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Escolher outro alvo'),
+                child: Text('Voltar'),
               ),
             ),
           ],

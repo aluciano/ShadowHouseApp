@@ -6,7 +6,7 @@ import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'table_screen.dart';
 import 'round_result_screen.dart';
-import 'accomplice_effect_screen.dart';
+import 'forced_discard_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -159,9 +159,31 @@ class HandScreen extends StatelessWidget {
                       if (card.templateId == 'cumplice') {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (_) => AccompliceEffectScreen(
+                            builder: (_) => ForcedDiscardEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver Cúmplice',
+                              effectName: 'Cúmplice',
+                              instructionText:
+                              'escolha outro jogador. Esse jogador descarta uma carta da própria mão e compra outra do monte.',
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'taca_envenenada') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => ForcedDiscardEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver A Taça Envenenada',
+                              effectName: 'A Taça Envenenada',
+                              instructionText:
+                              'escolha outro jogador. Esse jogador descarta uma carta da própria mão virada para cima e depois compra uma carta.',
                             ),
                           ),
                               (route) => route.isFirst,

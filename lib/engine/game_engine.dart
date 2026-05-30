@@ -90,12 +90,21 @@ GameState createInitialGameState(GameSetup setup) {
   );
 
   return GameState(
+    setup: setup,
     players: players,
     deck: pool,
     currentPlayerIndex: firstPlayerIndex == -1 ? 0 : firstPlayerIndex,
-    initialCards: setup.initialCards,
-    ghostCopies: setup.ghostCopies,
   );
+}
+
+GameState createNextRoundGameState(GameState previousState) {
+  final nextState = createInitialGameState(previousState.setup);
+
+  for (int i = 0; i < nextState.players.length; i++) {
+    nextState.players[i].score = previousState.players[i].score;
+  }
+
+  return nextState;
 }
 
 void playCard({
@@ -117,15 +126,31 @@ void playCard({
 
   if (guiltyWasPlayed) {
     final winners = gameState.players.where((player) {
-      return player.id == currentPlayer.id || player.isAccomplice;
+      final isGuiltyPlayer = player.id == currentPlayer.id;
+      final isOtherAccomplice = player.isAccomplice && !isGuiltyPlayer;
+
+      return isGuiltyPlayer || isOtherAccomplice;
     }).toList();
+
+    final roundPointsByPlayerId = <String, int>{};
+
+    for (final player in gameState.players) {
+      roundPointsByPlayerId[player.id] = 0;
+    }
 
     for (final player in winners) {
       player.score += 2;
+      roundPointsByPlayerId[player.id] = 2;
     }
 
-    final scoringSummary = winners.map((player) {
-      return '${player.name}: +2 pontos';
+    final scoringSummary = gameState.players.map((player) {
+      final points = roundPointsByPlayerId[player.id] ?? 0;
+
+      if (points == 0) {
+        return '${player.name}: 0 pontos';
+      }
+
+      return '${player.name}: +$points pontos';
     }).join('\n');
 
     gameState.roundFinished = true;
@@ -134,6 +159,7 @@ void playCard({
       winner: currentPlayer,
       reason: '${currentPlayer.name} jogou o Culpado como última carta da mão.',
       scoringSummary: scoringSummary,
+      roundPointsByPlayerId: roundPointsByPlayerId,
     );
 
     return;

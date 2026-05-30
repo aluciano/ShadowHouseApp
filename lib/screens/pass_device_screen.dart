@@ -54,9 +54,9 @@ class PassDeviceScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      gameState.ghostCopies > 0
-                          ? '${gameState.initialCards} cartas iniciais • ${gameState.ghostCopies} Fantasmas'
-                          : '${gameState.initialCards} cartas iniciais',
+                      gameState.setup.ghostCopies > 0
+                          ? '${gameState.setup.initialCards} cartas iniciais • ${gameState.setup.ghostCopies} Fantasmas'
+                          : '${gameState.setup.initialCards} cartas iniciais',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 14,

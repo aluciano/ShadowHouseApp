@@ -148,6 +148,12 @@ void playCard({
     return;
   }
 
+  final rustyKeyWasPlayed = card.templateId == 'chave_enferrujada';
+
+  if (rustyKeyWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -389,7 +395,7 @@ void finishRoundWithTotoWin({
   );
 }
 
-void resolveSheriffEffect({
+void resolveHandcuffsEffect({
   required GameState gameState,
   required Player targetPlayer,
 }) {

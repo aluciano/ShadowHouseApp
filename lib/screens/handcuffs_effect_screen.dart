@@ -5,29 +5,39 @@ import '../models/game_state.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 
-class SheriffEffectScreen extends StatelessWidget {
-  const SheriffEffectScreen({
+class HandcuffsEffectScreen extends StatelessWidget {
+  const HandcuffsEffectScreen({
     super.key,
     required this.gameState,
     required this.actingPlayerId,
+    required this.effectTitle,
+    required this.instructionText,
+    required this.allowSelfTarget,
   });
 
   final GameState gameState;
   final String actingPlayerId;
+  final String effectTitle;
+  final String instructionText;
+  final bool allowSelfTarget;
 
   @override
   Widget build(BuildContext context) {
-    final sheriffPlayer = gameState.players.firstWhere(
+    final actingPlayer = gameState.players.firstWhere(
           (player) => player.id == actingPlayerId,
     );
 
     final availableTargets = gameState.players.where((player) {
+      if (allowSelfTarget) {
+        return true;
+      }
+
       return player.id != actingPlayerId;
     }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Resolver Xerife'),
+        title: Text(effectTitle),
         backgroundColor: const Color(0xFF120818),
       ),
       body: ShadowBackground(
@@ -35,9 +45,9 @@ class SheriffEffectScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                'Efeito do Xerife',
-                style: TextStyle(
+              Text(
+                effectTitle,
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFE7C76F),
@@ -45,7 +55,7 @@ class SheriffEffectScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '${sheriffPlayer.name} deve escolher outro jogador para receber as algemas.',
+                '${actingPlayer.name}: $instructionText',
                 style: const TextStyle(
                   color: Colors.white70,
                 ),
@@ -68,11 +78,13 @@ class SheriffEffectScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       ...availableTargets.map((target) {
+                        final alreadyHasHandcuffs = target.hasHandcuffs;
+
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              resolveSheriffEffect(
+                              resolveHandcuffsEffect(
                                 gameState: gameState,
                                 targetPlayer: target,
                               );
@@ -86,10 +98,16 @@ class SheriffEffectScreen extends StatelessWidget {
                                     (route) => route.isFirst,
                               );
                             },
-                            icon: const Icon(Icons.lock),
+                            icon: Icon(
+                              alreadyHasHandcuffs ? Icons.link_off : Icons.link,
+                            ),
                             label: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Text(target.name),
+                              child: Text(
+                                alreadyHasHandcuffs
+                                    ? '${target.name} — já está com algemas'
+                                    : target.name,
+                              ),
                             ),
                           ),
                         );

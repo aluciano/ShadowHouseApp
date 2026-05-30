@@ -9,7 +9,7 @@ import 'round_result_screen.dart';
 import 'forced_discard_effect_screen.dart';
 import 'detective_effect_screen.dart';
 import 'toto_effect_screen.dart';
-import 'sheriff_effect_screen.dart';
+import 'handcuffs_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -226,9 +226,30 @@ class HandScreen extends StatelessWidget {
                       if (card.templateId == 'xerife') {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (_) => SheriffEffectScreen(
+                            builder: (_) => HandcuffsEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver Xerife',
+                              instructionText: 'escolha outro jogador para receber as algemas.',
+                              allowSelfTarget: false,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'chave_enferrujada') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => HandcuffsEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver A Chave Enferrujada',
+                              instructionText:
+                              'escolha qualquer jogador, inclusive você mesmo, para receber as algemas.',
+                              allowSelfTarget: true,
                             ),
                           ),
                               (route) => route.isFirst,

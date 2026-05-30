@@ -94,6 +94,7 @@ GameState createInitialGameState(GameSetup setup) {
     players: players,
     deck: pool,
     currentPlayerIndex: firstPlayerIndex == -1 ? 0 : firstPlayerIndex,
+    initialDeckSize: pool.length,
   );
 }
 
@@ -120,50 +121,94 @@ void playCard({
 
   if (accompliceWasPlayed) {
     currentPlayer.isAccomplice = true;
+
+    // O turno só avança depois que o efeito do Cúmplice for resolvido.
+    return;
   }
 
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
-    final winners = gameState.players.where((player) {
-      final isGuiltyPlayer = player.id == currentPlayer.id;
-      final isOtherAccomplice = player.isAccomplice && !isGuiltyPlayer;
-
-      return isGuiltyPlayer || isOtherAccomplice;
-    }).toList();
-
-    final roundPointsByPlayerId = <String, int>{};
-
-    for (final player in gameState.players) {
-      roundPointsByPlayerId[player.id] = 0;
-    }
-
-    for (final player in winners) {
-      player.score += 2;
-      roundPointsByPlayerId[player.id] = 2;
-    }
-
-    final scoringSummary = gameState.players.map((player) {
-      final points = roundPointsByPlayerId[player.id] ?? 0;
-
-      if (points == 0) {
-        return '${player.name}: 0 pontos';
-      }
-
-      return '${player.name}: +$points pontos';
-    }).join('\n');
-
-    gameState.roundFinished = true;
-    gameState.roundResult = RoundResult(
-      type: RoundResultType.guiltyWins,
-      winner: currentPlayer,
+    finishRoundWithGuiltyWin(
+      gameState: gameState,
+      guiltyPlayer: currentPlayer,
       reason: '${currentPlayer.name} jogou o Culpado como última carta da mão.',
-      scoringSummary: scoringSummary,
-      roundPointsByPlayerId: roundPointsByPlayerId,
     );
 
     return;
   }
 
   gameState.moveToNextPlayer();
+}
+
+void resolveAccompliceEffect({
+  required GameState gameState,
+  required Player targetPlayer,
+  required GameCard cardToDiscard,
+}) {
+  final wasLastCardInHand = targetPlayer.hand.length == 1;
+  final guiltyWasDiscarded = cardToDiscard.templateId == 'culpado';
+
+  targetPlayer.hand.removeWhere((card) => card.id == cardToDiscard.id);
+  targetPlayer.playedCards.add(cardToDiscard);
+
+  if (guiltyWasDiscarded && wasLastCardInHand) {
+    finishRoundWithGuiltyWin(
+      gameState: gameState,
+      guiltyPlayer: targetPlayer,
+      reason:
+      '${targetPlayer.name} descartou o Culpado como última carta da mão pelo efeito de Cúmplice.',
+    );
+
+    return;
+  }
+
+  if (gameState.deck.isNotEmpty) {
+    targetPlayer.hand.add(gameState.deck.removeAt(0));
+  }
+
+  gameState.moveToNextPlayer();
+}
+
+void finishRoundWithGuiltyWin({
+  required GameState gameState,
+  required Player guiltyPlayer,
+  required String reason,
+}) {
+  final winners = gameState.players.where((player) {
+    final isGuiltyPlayer = player.id == guiltyPlayer.id;
+    final isOtherAccomplice = player.isAccomplice && !isGuiltyPlayer;
+
+    return isGuiltyPlayer || isOtherAccomplice;
+  }).toList();
+
+  final roundPointsByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    roundPointsByPlayerId[player.id] = 0;
+  }
+
+  for (final player in winners) {
+    player.score += 2;
+    roundPointsByPlayerId[player.id] = 2;
+  }
+
+  final scoringSummary = gameState.players.map((player) {
+    final points = roundPointsByPlayerId[player.id] ?? 0;
+
+    if (points == 0) {
+      return '${player.name}: 0 pontos';
+    }
+
+    return '${player.name}: +$points pontos';
+  }).join('\n');
+
+  gameState.roundFinished = true;
+  gameState.roundResult = RoundResult(
+    type: RoundResultType.guiltyWins,
+    winner: guiltyPlayer,
+    reason: reason,
+    scoringSummary: scoringSummary,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
 }

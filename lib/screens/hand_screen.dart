@@ -6,6 +6,7 @@ import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'table_screen.dart';
 import 'round_result_screen.dart';
+import 'accomplice_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -131,6 +132,8 @@ class HandScreen extends StatelessWidget {
                         return;
                       }
 
+                      final actingPlayerId = gameState.currentPlayer.id;
+
                       playCard(
                         gameState: gameState,
                         card: card,
@@ -145,6 +148,20 @@ class HandScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => RoundResultScreen(
                               gameState: gameState,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'cumplice') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => AccompliceEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
                             ),
                           ),
                               (route) => route.isFirst,

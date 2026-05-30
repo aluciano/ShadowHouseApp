@@ -15,6 +15,20 @@ class TableScreen extends StatelessWidget {
   final bool showHands;
   final String title;
 
+  String deckSummaryText() {
+    final initialDeckSize = gameState.initialDeckSize;
+    final currentDeckSize = gameState.deck.length;
+    final drawnCards = gameState.drawnCardsCount;
+
+    if (drawnCards <= 0) {
+      return 'Monte de compras: $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
+    }
+
+    final subtractions = List.generate(drawnCards, (_) => '1').join(' - ');
+
+    return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,6 +56,15 @@ class TableScreen extends StatelessWidget {
                     : 'Veja as cartas já jogadas à frente de cada jogador.',
                 style: const TextStyle(
                   color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                deckSummaryText(),
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFFE7C76F),
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 24),

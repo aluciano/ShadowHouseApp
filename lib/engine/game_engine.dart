@@ -133,6 +133,13 @@ void playCard({
     return;
   }
 
+  final detectiveWasPlayed = card.templateId == 'detetive';
+
+  if (detectiveWasPlayed) {
+    // O turno só avança depois que o efeito do Detetive for resolvido.
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -218,6 +225,85 @@ void finishRoundWithGuiltyWin({
     type: RoundResultType.guiltyWins,
     winner: guiltyPlayer,
     reason: reason,
+    scoringSummary: scoringSummary,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+}
+
+String resolveDetectiveEffect({
+  required GameState gameState,
+  required Player detectivePlayer,
+  required Player targetPlayer,
+}) {
+  final targetHasGuilty = targetPlayer.hand.any(
+        (card) => card.templateId == 'culpado',
+  );
+
+  final targetHasAlibi = targetPlayer.hand.any(
+        (card) => card.templateId == 'alibi',
+  );
+
+  if (targetHasGuilty && !targetHasAlibi) {
+    finishRoundWithDetectiveWin(
+      gameState: gameState,
+      detectivePlayer: detectivePlayer,
+      guiltyPlayer: targetPlayer,
+    );
+
+    return '${targetPlayer.name} era o Culpado!';
+  }
+
+  gameState.moveToNextPlayer();
+
+  return '${targetPlayer.name} respondeu: “Não, eu não sou o culpado.”';
+}
+
+void finishRoundWithDetectiveWin({
+  required GameState gameState,
+  required Player detectivePlayer,
+  required Player guiltyPlayer,
+}) {
+  final detectiveCanScore = !detectivePlayer.isAccomplice;
+
+  final roundPointsByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    roundPointsByPlayerId[player.id] = 0;
+  }
+
+  if (detectiveCanScore) {
+    detectivePlayer.score += 2;
+    roundPointsByPlayerId[detectivePlayer.id] = 2;
+  }
+
+  for (final player in gameState.players) {
+    final isDetective = player.id == detectivePlayer.id;
+    final isGuilty = player.id == guiltyPlayer.id;
+    final isAccomplice = player.isAccomplice;
+
+    if (!isDetective && !isGuilty && !isAccomplice) {
+      player.score += 1;
+      roundPointsByPlayerId[player.id] = 1;
+    }
+  }
+
+  final scoringSummary = gameState.players.map((player) {
+    final points = roundPointsByPlayerId[player.id] ?? 0;
+
+    if (points == 0) {
+      return '${player.name}: 0 pontos';
+    }
+
+    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+  }).join('\n');
+
+  gameState.roundFinished = true;
+  gameState.roundResult = RoundResult(
+    type: RoundResultType.detectiveWins,
+    winner: detectivePlayer,
+    reason: detectiveCanScore
+        ? '${detectivePlayer.name} revelou corretamente o Culpado.'
+        : '${detectivePlayer.name} revelou o Culpado, mas já era Cúmplice e não venceu a rodada.',
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );

@@ -142,6 +142,12 @@ void playCard({
     return;
   }
 
+  final sheriffWasPlayed = card.templateId == 'xerife';
+
+  if (sheriffWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -381,4 +387,17 @@ void finishRoundWithTotoWin({
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
+}
+
+void resolveSheriffEffect({
+  required GameState gameState,
+  required Player targetPlayer,
+}) {
+  for (final player in gameState.players) {
+    player.hasHandcuffs = false;
+  }
+
+  targetPlayer.hasHandcuffs = true;
+
+  gameState.moveToNextPlayer();
 }

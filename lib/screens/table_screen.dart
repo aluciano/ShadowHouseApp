@@ -41,9 +41,9 @@ class TableScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                'Estado da Mesa',
-                style: TextStyle(
+              Text(
+                title == 'Mesa Final' ? 'Mesa Final' : 'Estado da Mesa',
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFE7C76F),
@@ -129,12 +129,15 @@ class TableScreen extends StatelessWidget {
                                 ),
                                 Builder(
                                   builder: (context) {
-                                    final roundPoints =
-                                        gameState.roundResult?.roundPointsByPlayerId[player.id] ?? 0;
+                                    final roundPoints = gameState.roundResult
+                                        ?.roundPointsByPlayerId[player.id] ??
+                                        0;
 
-                                    final previousScore = player.score - roundPoints;
+                                    final previousScore =
+                                        player.score - roundPoints;
 
-                                    final scoreText = showHands && gameState.roundResult != null
+                                    final scoreText =
+                                    showHands && gameState.roundResult != null
                                         ? '$previousScore + $roundPoints = ${player.score} ponto${player.score == 1 ? '' : 's'}'
                                         : '${player.score} ponto${player.score == 1 ? '' : 's'}';
 
@@ -151,6 +154,26 @@ class TableScreen extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (player.hasHandcuffs) ...[
+                          const SizedBox(height: 8),
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.link,
+                                size: 18,
+                                color: Color(0xFFE7C76F),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Algemas',
+                                style: TextStyle(
+                                  color: Color(0xFFE7C76F),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         const Text(
                           'Cartas à frente',
@@ -177,7 +200,9 @@ class TableScreen extends StatelessWidget {
 
                               return Chip(
                                 avatar: Icon(
-                                  wasDiscarded ? Icons.block : Icons.visibility,
+                                  wasDiscarded
+                                      ? Icons.block
+                                      : Icons.visibility,
                                   size: 16,
                                   color: wasDiscarded
                                       ? Colors.white70
@@ -186,7 +211,9 @@ class TableScreen extends StatelessWidget {
                                 label: Text(
                                   card.name,
                                   style: TextStyle(
-                                    color: wasDiscarded ? Colors.white70 : Colors.white,
+                                    color: wasDiscarded
+                                        ? Colors.white70
+                                        : Colors.white,
                                     decoration: wasDiscarded
                                         ? TextDecoration.lineThrough
                                         : TextDecoration.none,

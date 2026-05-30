@@ -157,6 +157,17 @@ void playCard({
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
+    if (currentPlayer.hasHandcuffs) {
+      finishRoundWithHandcuffsWin(
+        gameState: gameState,
+        guiltyPlayer: currentPlayer,
+        reason:
+        '${currentPlayer.name} revelou o Culpado como última carta, mas estava com algemas.',
+      );
+
+      return;
+    }
+
     finishRoundWithGuiltyWin(
       gameState: gameState,
       guiltyPlayer: currentPlayer,
@@ -184,6 +195,17 @@ void resolveForcedDiscardEffect({
   );
 
   if (guiltyWasDiscarded && wasLastCardInHand) {
+    if (targetPlayer.hasHandcuffs) {
+      finishRoundWithHandcuffsWin(
+        gameState: gameState,
+        guiltyPlayer: targetPlayer,
+        reason:
+        '${targetPlayer.name} descartou o Culpado como última carta pelo efeito de $effectName, mas estava com algemas.',
+      );
+
+      return;
+    }
+
     finishRoundWithGuiltyWin(
       gameState: gameState,
       guiltyPlayer: targetPlayer,
@@ -258,6 +280,17 @@ String resolveDetectiveEffect({
   );
 
   if (targetHasGuilty && !targetHasAlibi) {
+    if (targetPlayer.hasHandcuffs) {
+      finishRoundWithHandcuffsWin(
+        gameState: gameState,
+        guiltyPlayer: targetPlayer,
+        reason:
+        '${detectivePlayer.name} revelou que ${targetPlayer.name} era o Culpado, mas ele estava com algemas.',
+      );
+
+      return '${targetPlayer.name} era o Culpado e estava com algemas!';
+    }
+
     finishRoundWithDetectiveWin(
       gameState: gameState,
       detectivePlayer: detectivePlayer,
@@ -332,6 +365,17 @@ void resolveTotoEffect({
   final revealedGuilty = revealedCard.templateId == 'culpado';
 
   if (revealedGuilty) {
+    if (targetPlayer.hasHandcuffs) {
+      finishRoundWithHandcuffsWin(
+        gameState: gameState,
+        guiltyPlayer: targetPlayer,
+        reason:
+        '${totoPlayer.name} revelou o Culpado com Totó, mas ${targetPlayer.name} estava com algemas.',
+      );
+
+      return;
+    }
+
     finishRoundWithTotoWin(
       gameState: gameState,
       totoPlayer: totoPlayer,
@@ -406,4 +450,44 @@ void resolveHandcuffsEffect({
   targetPlayer.hasHandcuffs = true;
 
   gameState.moveToNextPlayer();
+}
+
+void finishRoundWithHandcuffsWin({
+  required GameState gameState,
+  required Player guiltyPlayer,
+  required String reason,
+}) {
+  final roundPointsByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    roundPointsByPlayerId[player.id] = 0;
+  }
+
+  for (final player in gameState.players) {
+    final isGuilty = player.id == guiltyPlayer.id;
+    final isAccomplice = player.isAccomplice;
+
+    if (!isGuilty && !isAccomplice) {
+      player.score += 1;
+      roundPointsByPlayerId[player.id] = 1;
+    }
+  }
+
+  final scoringSummary = gameState.players.map((player) {
+    final points = roundPointsByPlayerId[player.id] ?? 0;
+
+    if (points == 0) {
+      return '${player.name}: 0 pontos';
+    }
+
+    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+  }).join('\n');
+
+  gameState.roundFinished = true;
+  gameState.roundResult = RoundResult(
+    type: RoundResultType.handcuffsWins,
+    reason: reason,
+    scoringSummary: scoringSummary,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
 }

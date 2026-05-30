@@ -111,10 +111,19 @@ class RoundResultScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   ...gameState.players.map((player) {
+                    final roundPoints =
+                        gameState.roundResult?.roundPointsByPlayerId[player.id] ?? 0;
+
+                    final previousScore = player.score - roundPoints;
+
+                    final scoreText = roundPoints > 0
+                        ? '${player.name}: $previousScore + $roundPoints = ${player.score} ponto${player.score == 1 ? '' : 's'}'
+                        : '${player.name}: $previousScore + 0 = ${player.score} ponto${player.score == 1 ? '' : 's'}';
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Text(
-                        '${player.name}: ${player.score} ponto${player.score == 1 ? '' : 's'}',
+                        scoreText,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
@@ -261,7 +270,7 @@ class RoundResultScreen extends StatelessWidget {
       case RoundResultType.totoWins:
         return 'Totó venceu a rodada!';
       case RoundResultType.handcuffsWins:
-        return 'As algemas revelaram o Culpado!';
+        return 'As Algemas venceram!';
     }
   }
 }

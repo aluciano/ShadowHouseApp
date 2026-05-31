@@ -28,11 +28,18 @@ class HandcuffsEffectScreen extends StatelessWidget {
     );
 
     final availableTargets = gameState.players.where((player) {
-      if (allowSelfTarget) {
-        return true;
+      final isActingPlayer = player.id == actingPlayerId;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      if (!hasCardsInHand) {
+        return false;
       }
 
-      return player.id != actingPlayerId;
+      if (!allowSelfTarget && isActingPlayer) {
+        return false;
+      }
+
+      return true;
     }).toList();
 
     return Scaffold(
@@ -106,7 +113,7 @@ class HandcuffsEffectScreen extends StatelessWidget {
                               child: Text(
                                 alreadyHasHandcuffs
                                     ? '${target.name} — já está com algemas'
-                                    : target.name,
+                                    : '${target.name} — ${target.hand.length} carta${target.hand.length == 1 ? '' : 's'} na mão',
                               ),
                             ),
                           ),

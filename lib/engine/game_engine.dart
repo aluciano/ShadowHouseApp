@@ -160,6 +160,12 @@ void playCard({
     return;
   }
 
+  final witnessWasPlayed = card.templateId == 'testemunha';
+
+  if (witnessWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -509,5 +515,33 @@ Player findGuiltyPlayer(GameState gameState) {
 void resolveFamilyBabyEffect({
   required GameState gameState,
 }) {
+  gameState.moveToNextPlayer();
+}
+
+bool playerHandHasGuiltyOrAccomplice(Player player) {
+  return player.hand.any((card) {
+    return card.templateId == 'culpado' || card.templateId == 'cumplice';
+  });
+}
+
+void resolveWitnessWithoutExchange({
+  required GameState gameState,
+}) {
+  gameState.moveToNextPlayer();
+}
+
+void resolveWitnessExchange({
+  required GameState gameState,
+  required Player witnessPlayer,
+  required GameCard witnessCard,
+  required Player targetPlayer,
+  required GameCard targetCard,
+}) {
+  witnessPlayer.hand.removeWhere((card) => card.id == witnessCard.id);
+  targetPlayer.hand.removeWhere((card) => card.id == targetCard.id);
+
+  witnessPlayer.hand.add(targetCard);
+  targetPlayer.hand.add(witnessCard);
+
   gameState.moveToNextPlayer();
 }

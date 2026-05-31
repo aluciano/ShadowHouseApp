@@ -11,6 +11,7 @@ import 'detective_effect_screen.dart';
 import 'toto_effect_screen.dart';
 import 'handcuffs_effect_screen.dart';
 import 'family_baby_effect_screen.dart';
+import 'witness_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -231,7 +232,8 @@ class HandScreen extends StatelessWidget {
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
                               effectTitle: 'Resolver Xerife',
-                              instructionText: 'escolha outro jogador para receber as algemas.',
+                              instructionText:
+                              'escolha outro jogador com cartas na mão para receber as algemas.',
                               allowSelfTarget: false,
                             ),
                           ),
@@ -249,7 +251,7 @@ class HandScreen extends StatelessWidget {
                               actingPlayerId: actingPlayerId,
                               effectTitle: 'Resolver A Chave Enferrujada',
                               instructionText:
-                              'escolha qualquer jogador, inclusive você mesmo, para receber as algemas.',
+                              'escolha qualquer jogador com cartas na mão, inclusive você mesmo, para receber as algemas.',
                               allowSelfTarget: true,
                             ),
                           ),
@@ -263,6 +265,20 @@ class HandScreen extends StatelessWidget {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                             builder: (_) => FamilyBabyEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'testemunha') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => WitnessEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
                             ),

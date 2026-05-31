@@ -32,7 +32,9 @@ class _DetectiveEffectScreenState extends State<DetectiveEffectScreen> {
 
     final availableTargets = widget.gameState.players.where((player) {
       final isDetective = player.id == widget.actingPlayerId;
-      return !isDetective;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      return !isDetective && hasCardsInHand;
     }).toList();
 
     return Scaffold(

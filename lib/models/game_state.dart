@@ -28,6 +28,16 @@ class GameState {
   int get drawnCardsCount => initialDeckSize - deck.length;
 
   void moveToNextPlayer() {
-    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+    if (players.every((player) => player.hand.isEmpty)) {
+      return;
+    }
+
+    var nextIndex = currentPlayerIndex;
+
+    do {
+      nextIndex = (nextIndex + 1) % players.length;
+    } while (players[nextIndex].hand.isEmpty);
+
+    currentPlayerIndex = nextIndex;
   }
 }

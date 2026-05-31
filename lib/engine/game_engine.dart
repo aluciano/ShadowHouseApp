@@ -172,6 +172,12 @@ void playCard({
     return;
   }
 
+  final shareWasPlayed = card.templateId == 'compartilhar';
+
+  if (shareWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -566,4 +572,54 @@ void resolveCardExchange({
   targetPlayer.hand.add(actingPlayerCard);
 
   gameState.moveToNextPlayer();
+}
+
+Map<String, int> resolveCircularCardPassEffect({
+  required GameState gameState,
+  required Map<String, GameCard> selectedCardByPlayerId,
+  required bool passToLeft,
+}) {
+  final cardsToMove = <String, GameCard>{};
+
+  final receivedCardsCountByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    receivedCardsCountByPlayerId[player.id] = 0;
+  }
+
+  for (final entry in selectedCardByPlayerId.entries) {
+    final playerId = entry.key;
+    final selectedCard = entry.value;
+
+    final player = gameState.players.firstWhere(
+          (player) => player.id == playerId,
+    );
+
+    player.hand.removeWhere((card) => card.id == selectedCard.id);
+    cardsToMove[playerId] = selectedCard;
+  }
+
+  for (final entry in cardsToMove.entries) {
+    final sourcePlayerId = entry.key;
+    final card = entry.value;
+
+    final sourceIndex = gameState.players.indexWhere(
+          (player) => player.id == sourcePlayerId,
+    );
+
+    final targetIndex = passToLeft
+        ? (sourceIndex + 1) % gameState.players.length
+        : (sourceIndex - 1 + gameState.players.length) %
+        gameState.players.length;
+
+    final targetPlayer = gameState.players[targetIndex];
+
+    targetPlayer.hand.add(card);
+    receivedCardsCountByPlayerId[targetPlayer.id] =
+        (receivedCardsCountByPlayerId[targetPlayer.id] ?? 0) + 1;
+  }
+
+  gameState.moveToNextPlayer();
+
+  return receivedCardsCountByPlayerId;
 }

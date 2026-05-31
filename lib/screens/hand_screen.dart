@@ -13,6 +13,7 @@ import 'handcuffs_effect_screen.dart';
 import 'family_baby_effect_screen.dart';
 import 'witness_effect_screen.dart';
 import 'card_exchange_effect_screen.dart';
+import 'circular_card_pass_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -299,6 +300,24 @@ class HandScreen extends StatelessWidget {
                               effectTitle: 'Resolver Trocar',
                               introText:
                               'escolha outro jogador com cartas na mão. Depois cada um escolhe uma carta da própria mão para trocar.',
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'compartilhar') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => CircularCardPassEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver Compartilhar',
+                              introText:
+                              'Cada jogador com cartas na mão escolhe uma carta. Depois, cada carta será entregue ao jogador à esquerda, seguindo a ordem da mesa.',
+                              passToLeft: true,
                             ),
                           ),
                               (route) => route.isFirst,

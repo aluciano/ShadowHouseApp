@@ -5,8 +5,8 @@ import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../widgets/shadow_background.dart';
-import 'pass_device_screen.dart';
 import 'card_exchange_effect_screen.dart';
+import 'pass_device_screen.dart';
 
 enum WitnessStep {
   selectTarget,
@@ -46,38 +46,42 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
       return !isWitnessPlayer && hasCardsInHand;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resolver Testemunha'),
-        backgroundColor: const Color(0xFF120818),
-      ),
-      body: ShadowBackground(
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const Text(
-                'Efeito da Testemunha',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFE7C76F),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text('Resolver Testemunha'),
+          backgroundColor: const Color(0xFF120818),
+        ),
+        body: ShadowBackground(
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const Text(
+                  'Efeito da Testemunha',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFE7C76F),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${witnessPlayer.name} deve escolher outro jogador para olhar a mão em segredo.',
-                style: const TextStyle(
-                  color: Colors.white70,
+                const SizedBox(height: 8),
+                Text(
+                  '${witnessPlayer.name} deve escolher outro jogador para olhar a mão em segredo.',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              _buildCurrentStep(
-                context: context,
-                witnessPlayer: witnessPlayer,
-                availableTargets: availableTargets,
-              ),
-            ],
+                const SizedBox(height: 24),
+                _buildCurrentStep(
+                  context: context,
+                  witnessPlayer: witnessPlayer,
+                  availableTargets: availableTargets,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -94,7 +98,8 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
         if (availableTargets.isEmpty) {
           return _MessageCard(
             title: 'Nenhum alvo disponível',
-            message: 'Não há outros jogadores com cartas na mão para investigar.',
+            message:
+            'Não há outros jogadores com cartas na mão para investigar.',
             buttonText: 'Continuar',
             onPressed: () {
               resolveWitnessWithoutExchange(
@@ -118,7 +123,6 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
 
       case WitnessStep.privacyBeforeReveal:
         return _PrivacyCard(
-          playerName: witnessPlayer.name,
           title: 'Somente ${witnessPlayer.name} deve olhar',
           message:
           'A Testemunha vai olhar a mão de ${selectedTarget!.name} em segredo.',
@@ -154,7 +158,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
             _goToNextPlayer(context);
           },
           onStartExchange: () {
-            Navigator.of(context).pushAndRemoveUntil(
+            Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => CardExchangeEffectScreen(
                   gameState: widget.gameState,
@@ -165,7 +169,6 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
                   'escolha uma carta da sua mão. Depois o jogador investigado escolherá uma carta da própria mão para trocar.',
                 ),
               ),
-                  (route) => route.isFirst,
             );
           },
         );
@@ -236,7 +239,6 @@ class _TargetSelectionCard extends StatelessWidget {
 
 class _PrivacyCard extends StatelessWidget {
   const _PrivacyCard({
-    required this.playerName,
     required this.title,
     required this.message,
     required this.buttonText,
@@ -244,7 +246,6 @@ class _PrivacyCard extends StatelessWidget {
     required this.onBack,
   });
 
-  final String playerName;
   final String title;
   final String message;
   final String buttonText;
@@ -359,7 +360,6 @@ class _InspectTargetHandCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
             LayoutBuilder(
               builder: (context, constraints) {
                 final useSideBySide = constraints.maxWidth >= 620;
@@ -398,7 +398,6 @@ class _InspectTargetHandCard extends StatelessWidget {
                 );
               },
             ),
-
             const SizedBox(height: 16),
             if (!foundSuspiciousCard)
               const Text(

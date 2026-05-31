@@ -178,6 +178,12 @@ void playCard({
     return;
   }
 
+  final rumorsWasPlayed = card.templateId == 'rumores';
+
+  if (rumorsWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -617,6 +623,54 @@ Map<String, int> resolveCircularCardPassEffect({
     targetPlayer.hand.add(card);
     receivedCardsCountByPlayerId[targetPlayer.id] =
         (receivedCardsCountByPlayerId[targetPlayer.id] ?? 0) + 1;
+  }
+
+  gameState.moveToNextPlayer();
+
+  return receivedCardsCountByPlayerId;
+}
+
+class RumorCardSelection {
+  const RumorCardSelection({
+    required this.receiverPlayerId,
+    required this.sourcePlayerId,
+    required this.card,
+  });
+
+  final String receiverPlayerId;
+  final String sourcePlayerId;
+  final GameCard card;
+}
+
+Map<String, int> resolveRumorsEffect({
+  required GameState gameState,
+  required List<RumorCardSelection> selections,
+}) {
+  final receivedCardsCountByPlayerId = <String, int>{};
+
+  for (final player in gameState.players) {
+    receivedCardsCountByPlayerId[player.id] = 0;
+  }
+
+  for (final selection in selections) {
+    final sourcePlayer = gameState.players.firstWhere(
+          (player) => player.id == selection.sourcePlayerId,
+    );
+
+    sourcePlayer.hand.removeWhere(
+          (card) => card.id == selection.card.id,
+    );
+  }
+
+  for (final selection in selections) {
+    final receiverPlayer = gameState.players.firstWhere(
+          (player) => player.id == selection.receiverPlayerId,
+    );
+
+    receiverPlayer.hand.add(selection.card);
+
+    receivedCardsCountByPlayerId[receiverPlayer.id] =
+        (receivedCardsCountByPlayerId[receiverPlayer.id] ?? 0) + 1;
   }
 
   gameState.moveToNextPlayer();

@@ -14,6 +14,7 @@ import 'family_baby_effect_screen.dart';
 import 'witness_effect_screen.dart';
 import 'card_exchange_effect_screen.dart';
 import 'circular_card_pass_effect_screen.dart';
+import 'rumors_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -318,6 +319,20 @@ class HandScreen extends StatelessWidget {
                               introText:
                               'Cada jogador com cartas na mão escolhe uma carta. Depois, cada carta será entregue ao jogador à esquerda, seguindo a ordem da mesa.',
                               passToLeft: true,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'rumores') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => RumorsEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
                             ),
                           ),
                               (route) => route.isFirst,

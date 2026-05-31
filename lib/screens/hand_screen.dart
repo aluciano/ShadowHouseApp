@@ -10,6 +10,7 @@ import 'forced_discard_effect_screen.dart';
 import 'detective_effect_screen.dart';
 import 'toto_effect_screen.dart';
 import 'handcuffs_effect_screen.dart';
+import 'family_baby_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -250,6 +251,20 @@ class HandScreen extends StatelessWidget {
                               instructionText:
                               'escolha qualquer jogador, inclusive você mesmo, para receber as algemas.',
                               allowSelfTarget: true,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'bebe_da_familia') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => FamilyBabyEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
                             ),
                           ),
                               (route) => route.isFirst,

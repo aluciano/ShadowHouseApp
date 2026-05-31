@@ -154,6 +154,12 @@ void playCard({
     return;
   }
 
+  final familyBabyWasPlayed = card.templateId == 'bebe_da_familia';
+
+  if (familyBabyWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -490,4 +496,18 @@ void finishRoundWithHandcuffsWin({
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
+}
+
+Player findGuiltyPlayer(GameState gameState) {
+  return gameState.players.firstWhere(
+        (player) => player.hand.any(
+          (card) => card.templateId == 'culpado',
+    ),
+  );
+}
+
+void resolveFamilyBabyEffect({
+  required GameState gameState,
+}) {
+  gameState.moveToNextPlayer();
 }

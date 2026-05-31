@@ -12,6 +12,7 @@ import 'toto_effect_screen.dart';
 import 'handcuffs_effect_screen.dart';
 import 'family_baby_effect_screen.dart';
 import 'witness_effect_screen.dart';
+import 'card_exchange_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -281,6 +282,23 @@ class HandScreen extends StatelessWidget {
                             builder: (_) => WitnessEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'trocar') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => CardExchangeEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                              effectTitle: 'Resolver Trocar',
+                              introText:
+                              'escolha outro jogador com cartas na mão. Depois cada um escolhe uma carta da própria mão para trocar.',
                             ),
                           ),
                               (route) => route.isFirst,

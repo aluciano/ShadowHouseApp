@@ -166,6 +166,12 @@ void playCard({
     return;
   }
 
+  final swapWasPlayed = card.templateId == 'trocar';
+
+  if (swapWasPlayed) {
+    return;
+  }
+
   final guiltyWasPlayed = card.templateId == 'culpado';
 
   if (guiltyWasPlayed) {
@@ -542,6 +548,22 @@ void resolveWitnessExchange({
 
   witnessPlayer.hand.add(targetCard);
   targetPlayer.hand.add(witnessCard);
+
+  gameState.moveToNextPlayer();
+}
+
+void resolveCardExchange({
+  required GameState gameState,
+  required Player actingPlayer,
+  required GameCard actingPlayerCard,
+  required Player targetPlayer,
+  required GameCard targetPlayerCard,
+}) {
+  actingPlayer.hand.removeWhere((card) => card.id == actingPlayerCard.id);
+  targetPlayer.hand.removeWhere((card) => card.id == targetPlayerCard.id);
+
+  actingPlayer.hand.add(targetPlayerCard);
+  targetPlayer.hand.add(actingPlayerCard);
 
   gameState.moveToNextPlayer();
 }

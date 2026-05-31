@@ -6,14 +6,12 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
+import 'card_exchange_effect_screen.dart';
 
 enum WitnessStep {
   selectTarget,
   privacyBeforeReveal,
   inspectTargetHand,
-  selectWitnessCard,
-  passToTarget,
-  selectTargetCard,
 }
 
 class WitnessEffectScreen extends StatefulWidget {
@@ -34,7 +32,6 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
   WitnessStep step = WitnessStep.selectTarget;
 
   Player? selectedTarget;
-  GameCard? selectedWitnessCard;
 
   @override
   Widget build(BuildContext context) {
@@ -157,66 +154,19 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
             _goToNextPlayer(context);
           },
           onStartExchange: () {
-            setState(() {
-              step = WitnessStep.selectWitnessCard;
-            });
-          },
-        );
-
-      case WitnessStep.selectWitnessCard:
-        return _WitnessCardSelectionCard(
-          witnessPlayer: witnessPlayer,
-          onCardSelected: (card) {
-            setState(() {
-              selectedWitnessCard = card;
-              step = WitnessStep.passToTarget;
-            });
-          },
-          onBack: () {
-            setState(() {
-              step = WitnessStep.inspectTargetHand;
-            });
-          },
-        );
-
-      case WitnessStep.passToTarget:
-        return _PrivacyCard(
-          playerName: selectedTarget!.name,
-          title: 'Passe o celular para',
-          message:
-          '${selectedTarget!.name} deve escolher uma carta da própria mão para trocar.',
-          buttonText: 'Escolher carta',
-          onContinue: () {
-            setState(() {
-              step = WitnessStep.selectTargetCard;
-            });
-          },
-          onBack: () {
-            setState(() {
-              selectedWitnessCard = null;
-              step = WitnessStep.selectWitnessCard;
-            });
-          },
-        );
-
-      case WitnessStep.selectTargetCard:
-        return _TargetCardSelectionCard(
-          targetPlayer: selectedTarget!,
-          onCardSelected: (targetCard) {
-            resolveWitnessExchange(
-              gameState: widget.gameState,
-              witnessPlayer: witnessPlayer,
-              witnessCard: selectedWitnessCard!,
-              targetPlayer: selectedTarget!,
-              targetCard: targetCard,
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => CardExchangeEffectScreen(
+                  gameState: widget.gameState,
+                  actingPlayerId: widget.actingPlayerId,
+                  fixedTargetPlayerId: selectedTarget!.id,
+                  effectTitle: 'Troca da Testemunha',
+                  introText:
+                  'escolha uma carta da sua mão. Depois o jogador investigado escolherá uma carta da própria mão para trocar.',
+                ),
+              ),
+                  (route) => route.isFirst,
             );
-
-            _goToNextPlayer(context);
-          },
-          onBack: () {
-            setState(() {
-              step = WitnessStep.passToTarget;
-            });
           },
         );
     }
@@ -586,144 +536,6 @@ class _HandPreviewPanel extends StatelessWidget {
               );
             }),
         ],
-      ),
-    );
-  }
-}
-
-class _WitnessCardSelectionCard extends StatelessWidget {
-  const _WitnessCardSelectionCard({
-    required this.witnessPlayer,
-    required this.onCardSelected,
-    required this.onBack,
-  });
-
-  final Player witnessPlayer;
-  final ValueChanged<GameCard> onCardSelected;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF221229),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${witnessPlayer.name}, escolha uma carta da sua mão',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE7C76F),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Essa carta será entregue ao jogador investigado.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...witnessPlayer.hand.map((card) {
-              return Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Text(card.shortText),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    onCardSelected(card);
-                  },
-                ),
-              );
-            }),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onBack,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Voltar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TargetCardSelectionCard extends StatelessWidget {
-  const _TargetCardSelectionCard({
-    required this.targetPlayer,
-    required this.onCardSelected,
-    required this.onBack,
-  });
-
-  final Player targetPlayer;
-  final ValueChanged<GameCard> onCardSelected;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF221229),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${targetPlayer.name}, escolha uma carta da sua mão',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE7C76F),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Essa carta será entregue à Testemunha.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...targetPlayer.hand.map((card) {
-              return Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Text(card.shortText),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    onCardSelected(card);
-                  },
-                ),
-              );
-            }),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onBack,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Voltar'),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

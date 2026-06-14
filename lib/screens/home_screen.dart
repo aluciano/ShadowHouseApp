@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/shadow_background.dart';
+import 'match_history_screen.dart';
+import 'online_entry_screen.dart';
 import 'setup_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -59,7 +61,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 56),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton(
+                    child: FilledButton.icon(
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -67,10 +69,11 @@ class HomeScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      child: const Padding(
+                      icon: const Icon(Icons.phone_android),
+                      label: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          'Nova Partida',
+                          'Partida Local',
                           style: TextStyle(fontSize: 18),
                         ),
                       ),
@@ -79,7 +82,49 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const OnlineEntryScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.public),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        child: Text(
+                          'Partida Online',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const MatchHistoryScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.history),
+                      label: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        child: Text(
+                          'Historico',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -89,7 +134,8 @@ class HomeScreen extends StatelessWidget {
                           ),
                         );
                       },
-                      child: const Padding(
+                      icon: const Icon(Icons.settings),
+                      label: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
                           'Configurações',

@@ -1,0 +1,4 @@
+enum MatchPlayMode {
+  local,
+  online,
+}

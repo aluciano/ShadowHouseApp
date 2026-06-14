@@ -87,6 +87,16 @@ class FakeOnlineGameRepository {
   Future<OnlineGameSession> startGame(OnlineRoom room) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
+    return _createSessionForRoom(room);
+  }
+
+  Future<OnlineGameSession> startNewMatchInSameRoom(OnlineRoom room) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    return _createSessionForRoom(room);
+  }
+
+  OnlineGameSession _createSessionForRoom(OnlineRoom room) {
     final readyPlayers = _playersWithMinimumCount(room.players);
     final recommendation = GameSetupRules.recommendation(
       playerCount: readyPlayers.length,
@@ -120,6 +130,7 @@ class FakeOnlineGameRepository {
       room: startedRoom,
       gameState: gameState,
       startedAt: DateTime.now(),
+      roundsPlayed: 1,
     );
   }
 

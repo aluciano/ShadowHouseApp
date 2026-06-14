@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
+import '../models/match_history_entry.dart';
+import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
 import '../models/player.dart';
+import '../repositories/fake_match_history_repository.dart';
 import '../widgets/shadow_background.dart';
+import 'online_round_result_screen.dart';
 
 class OnlineGameScreen extends StatefulWidget {
   const OnlineGameScreen({
@@ -24,6 +28,7 @@ class OnlineGameScreen extends StatefulWidget {
 class _OnlineGameScreenState extends State<OnlineGameScreen> {
   late GameState gameState;
   late String viewedPlayerId;
+  bool finishedMatchWasRecorded = false;
 
   @override
   void initState() {
@@ -113,7 +118,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     });
 
     if (gameState.roundFinished) {
-      showMessage('Rodada finalizada. A tela de resultado online vem na proxima etapa.');
+      await finishOnlineRound();
       return;
     }
 
@@ -122,6 +127,49 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         'Efeito de ${card.name} sera resolvido online em uma proxima etapa.',
       );
     }
+  }
+
+  Future<void> finishOnlineRound() async {
+    final highestScore = gameState.players
+        .map((player) => player.score)
+        .reduce((a, b) => a > b ? a : b);
+    final isMatchFinished = highestScore >= 5;
+
+    if (isMatchFinished && !finishedMatchWasRecorded) {
+      finishedMatchWasRecorded = true;
+
+      final finishedAt = DateTime.now();
+      final winnerNames = gameState.players
+          .where((player) => player.score == highestScore)
+          .map((player) => player.name)
+          .toList();
+
+      await FakeMatchHistoryRepository.instance.saveMatch(
+        MatchHistoryEntry(
+          id: 'online_${finishedAt.microsecondsSinceEpoch}',
+          playMode: MatchPlayMode.online,
+          gameMode: gameState.setup.gameMode,
+          startedAt: widget.session.startedAt,
+          finishedAt: finishedAt,
+          playerNames: gameState.players.map((player) => player.name).toList(),
+          winnerNames: winnerNames,
+          roundsPlayed: widget.session.roundsPlayed,
+          roomCode: widget.session.room.code,
+        ),
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => OnlineRoundResultScreen(
+          session: widget.session,
+        ),
+      ),
+    );
   }
 
   bool _cardNeedsOnlineResolution(GameCard card) {

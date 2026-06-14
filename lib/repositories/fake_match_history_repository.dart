@@ -45,4 +45,10 @@ class FakeMatchHistoryRepository {
 
     return List.unmodifiable(_history);
   }
+
+  Future<void> saveMatch(MatchHistoryEntry entry) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+
+    _history.insert(0, entry);
+  }
 }

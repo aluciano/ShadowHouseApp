@@ -111,12 +111,12 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Inicio: ${_formatDateTime(entry.startedAt)}',
+                              'Inicio: ${_formatTime(entry.startedAt)}',
                               style: const TextStyle(color: Colors.white60),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Fim: ${_formatDateTime(entry.finishedAt)}',
+                              'Fim: ${_formatTime(entry.finishedAt)}',
                               style: const TextStyle(color: Colors.white60),
                             ),
                             const SizedBox(height: 4),
@@ -190,11 +190,11 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
     return '$day/$month/$year';
   }
 
-  String _formatDateTime(DateTime date) {
+  String _formatTime(DateTime date) {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
 
-    return '${_formatDate(date)} $hour:$minute';
+    return '$hour:$minute';
   }
 
   String _formatDuration(Duration duration) {

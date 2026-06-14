@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/online_room.dart';
+import '../repositories/fake_online_game_repository.dart';
 import '../widgets/shadow_background.dart';
+import 'online_game_screen.dart';
 
-class OnlineLobbyScreen extends StatelessWidget {
+class OnlineLobbyScreen extends StatefulWidget {
   const OnlineLobbyScreen({
     super.key,
     required this.room,
@@ -15,9 +17,43 @@ class OnlineLobbyScreen extends StatelessWidget {
   final String currentPlayerId;
 
   @override
+  State<OnlineLobbyScreen> createState() => _OnlineLobbyScreenState();
+}
+
+class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
+  bool isStartingGame = false;
+
+  Future<void> startGame() async {
+    setState(() {
+      isStartingGame = true;
+    });
+
+    final session = await FakeOnlineGameRepository.instance.startGame(
+      widget.room,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      isStartingGame = false;
+    });
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => OnlineGameScreen(
+          session: session,
+          initialViewedPlayerId: session.gameState.currentPlayer.id,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final currentPlayer = room.players.firstWhere(
-      (player) => player.id == currentPlayerId,
+    final currentPlayer = widget.room.players.firstWhere(
+      (player) => player.id == widget.currentPlayerId,
     );
     final isHost = currentPlayer.isHost;
 
@@ -46,7 +82,7 @@ class OnlineLobbyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               SelectableText(
-                room.code,
+                widget.room.code,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 36,
@@ -81,12 +117,14 @@ class OnlineLobbyScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        GameSetupRules.titleForMode(room.gameMode),
+                        GameSetupRules.titleForMode(widget.room.gameMode),
                         style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        GameSetupRules.descriptionForMode(room.gameMode),
+                        GameSetupRules.descriptionForMode(
+                          widget.room.gameMode,
+                        ),
                         style: const TextStyle(color: Colors.white70),
                       ),
                     ],
@@ -102,7 +140,7 @@ class OnlineLobbyScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Jogadores (${room.players.length})',
+                        'Jogadores (${widget.room.players.length})',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -110,14 +148,14 @@ class OnlineLobbyScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ...room.players.map((player) {
+                      ...widget.room.players.map((player) {
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
                             player.isHost
                                 ? Icons.workspace_premium
                                 : Icons.person,
-                            color: player.id == currentPlayerId
+                            color: player.id == widget.currentPlayerId
                                 ? const Color(0xFFE7C76F)
                                 : Colors.white70,
                           ),
@@ -142,17 +180,16 @@ class OnlineLobbyScreen extends StatelessWidget {
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: isHost
-                    ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'O inicio online sera conectado ao Firebase na proxima etapa.',
-                            ),
-                          ),
-                        );
-                      }
+                    ? isStartingGame
+                        ? null
+                        : startGame
                     : null,
-                icon: const Icon(Icons.play_arrow),
+                icon: isStartingGame
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.play_arrow),
                 label: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
                   child: Text(

@@ -109,6 +109,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     try {
       final previousPlayerId = gameState.currentPlayer.id;
       final isDetectiveCard = card.templateId == 'detetive';
+      final isTotoCard = card.templateId == 'toto';
+      final hasPendingResolution = isDetectiveCard || isTotoCard;
 
       playCard(
         gameState: gameState,
@@ -116,18 +118,15 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       );
 
       if (!gameState.roundFinished &&
-          !isDetectiveCard &&
+          !hasPendingResolution &&
           gameState.currentPlayer.id == previousPlayerId) {
         gameState.moveToNextPlayer();
       }
 
-      final pendingEffect = isDetectiveCard
-          ? OnlinePendingEffect(
-              type: OnlineEffectType.detective,
-              actingPlayerId: player.id,
-              cardName: card.name,
-            )
-          : null;
+      final pendingEffect = _pendingEffectForCard(
+        card: card,
+        actingPlayerId: player.id,
+      );
 
       await RepositoryRegistry.onlineGame.saveCurrentSession(
         session.copyWith(
@@ -136,7 +135,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         ),
       );
 
-      if (_cardNeedsOnlineResolution(card) && !isDetectiveCard) {
+      if (_cardNeedsOnlineResolution(card)) {
         showMessage(
           'Efeito de ${card.name} será resolvido online em uma próxima etapa.',
         );
@@ -150,6 +149,29 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         });
       }
     }
+  }
+
+  OnlinePendingEffect? _pendingEffectForCard({
+    required GameCard card,
+    required String actingPlayerId,
+  }) {
+    if (card.templateId == 'detetive') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.detective,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'toto') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.toto,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    return null;
   }
 
   Future<void> resolveDetectiveTarget({
@@ -196,6 +218,139 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         });
       }
     }
+  }
+
+  Future<void> selectTotoTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher o alvo do Totó: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipTotoWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar o efeito do Totó: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveTotoCard({
+    required OnlineGameSession session,
+    required GameCard revealedCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || effect.targetPlayerId == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final totoPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId!,
+      );
+
+      resolveTotoEffect(
+        gameState: session.gameState,
+        totoPlayer: totoPlayer,
+        targetPlayer: targetPlayer,
+        revealedCard: revealedCard,
+      );
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            revealedCardId: revealedCard.id,
+            revealedCardName: revealedCard.name,
+            revealedCardTemplateId: revealedCard.templateId,
+            resultMessage: _totoResultMessage(
+              targetPlayer: targetPlayer,
+              revealedCard: revealedCard,
+            ),
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver o Totó: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  String _totoResultMessage({
+    required Player targetPlayer,
+    required GameCard revealedCard,
+  }) {
+    if (revealedCard.templateId == 'culpado') {
+      return '${targetPlayer.name} estava com o Culpado!';
+    }
+
+    return 'A carta não era o Culpado. Ela volta para a mão de ${targetPlayer.name}.';
   }
 
   Future<void> acknowledgePendingEffect(OnlineGameSession session) async {
@@ -308,7 +463,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return {
       'cumplice',
       'taca_envenenada',
-      'toto',
       'xerife',
       'chave_enferrujada',
       'bebe_da_familia',
@@ -416,6 +570,21 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                           target: target,
                         );
                       },
+                      onTotoTargetSelected: (target) {
+                        selectTotoTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onTotoCardSelected: (card) {
+                        resolveTotoCard(
+                          session: session,
+                          revealedCard: card,
+                        );
+                      },
+                      onTotoWithoutTarget: () {
+                        skipTotoWithoutTarget(session);
+                      },
                       onAcknowledge: () {
                         acknowledgePendingEffect(session);
                       },
@@ -505,6 +674,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.currentPlayerId,
     required this.isResolvingEffect,
     required this.onDetectiveTargetSelected,
+    required this.onTotoTargetSelected,
+    required this.onTotoCardSelected,
+    required this.onTotoWithoutTarget,
     required this.onAcknowledge,
   });
 
@@ -512,6 +684,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final String currentPlayerId;
   final bool isResolvingEffect;
   final ValueChanged<Player> onDetectiveTargetSelected;
+  final ValueChanged<Player> onTotoTargetSelected;
+  final ValueChanged<GameCard> onTotoCardSelected;
+  final VoidCallback onTotoWithoutTarget;
   final VoidCallback onAcknowledge;
 
   @override
@@ -527,7 +702,274 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onTargetSelected: onDetectiveTargetSelected,
           onAcknowledge: onAcknowledge,
         );
+      case OnlineEffectType.toto:
+        return _TotoPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onTotoTargetSelected,
+          onCardSelected: onTotoCardSelected,
+          onWithoutTarget: onTotoWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
     }
+  }
+}
+
+class _TotoPendingEffectCard extends StatelessWidget {
+  const _TotoPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onCardSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final totoPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsToto = currentPlayerId == totoPlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      final isTotoPlayer = player.id == totoPlayer.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      return !isTotoPlayer && hasCardsInHand;
+    }).toList();
+    final targetWasSelected = targetPlayer != null;
+    final cardWasRevealed = effect.revealedCardName != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.pets,
+                  color: Color(0xFFE7C76F),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Efeito do Totó',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _statusText(
+                totoPlayer: totoPlayer,
+                targetPlayer: targetPlayer,
+                cardWasRevealed: cardWasRevealed,
+              ),
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            if (!targetWasSelected) ...[
+              if (availableTargets.isEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Não há jogadores com cartas na mão para investigar.',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    if (currentDeviceIsToto) ...[
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: isResolvingEffect ? null : onWithoutTarget,
+                        icon: const Icon(Icons.skip_next),
+                        label: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text('Continuar'),
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              else if (currentDeviceIsToto)
+                ...availableTargets.map((target) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(target);
+                            },
+                      icon: const Icon(Icons.record_voice_over),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          'Investigar ${target.name} (${target.hand.length} carta${target.hand.length == 1 ? '' : 's'})',
+                        ),
+                      ),
+                    ),
+                  );
+                })
+              else
+                const Text(
+                  'Aguardando o Totó escolher quem vai investigar.',
+                  style: TextStyle(color: Colors.white60),
+                ),
+            ] else if (!cardWasRevealed) ...[
+              if (currentDeviceIsToto)
+                _HiddenTotoCards(
+                  targetPlayer: targetPlayer,
+                  isResolvingEffect: isResolvingEffect,
+                  onCardSelected: onCardSelected,
+                )
+              else
+                const Text(
+                  'Aguardando o Totó revelar uma carta escondida.',
+                  style: TextStyle(color: Colors.white60),
+                ),
+            ] else ...[
+              Text(
+                effect.revealedCardName!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Color(0xFFE7C76F),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _statusText({
+    required Player totoPlayer,
+    required Player? targetPlayer,
+    required bool cardWasRevealed,
+  }) {
+    if (targetPlayer == null) {
+      return '${totoPlayer.name} deve escolher quem o Totó vai investigar.';
+    }
+
+    if (!cardWasRevealed) {
+      return '${totoPlayer.name} está investigando ${targetPlayer.name}.';
+    }
+
+    return '${totoPlayer.name} investigou ${targetPlayer.name} com Totó.';
+  }
+}
+
+class _HiddenTotoCards extends StatelessWidget {
+  const _HiddenTotoCards({
+    required this.targetPlayer,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+  });
+
+  final Player targetPlayer;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(targetPlayer.hand.length, (index) {
+        final card = targetPlayer.hand[index];
+
+        return SizedBox(
+          width: 120,
+          height: 96,
+          child: OutlinedButton(
+            onPressed: isResolvingEffect
+                ? null
+                : () {
+                    onCardSelected(card);
+                  },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.help_outline),
+                const SizedBox(height: 8),
+                Text(
+                  'Carta ${index + 1}',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
   }
 }
 

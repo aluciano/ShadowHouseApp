@@ -57,6 +57,7 @@ OnlineGameSession createNextOnlineRoundSession(OnlineGameSession session) {
     gameState: nextRoundState,
     roundsPlayed: session.roundsPlayed + 1,
     rematchProposalPlayerIds: const [],
+    nextRoundReadyPlayerIds: const [],
   );
 }
 

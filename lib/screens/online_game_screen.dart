@@ -6,6 +6,7 @@ import '../models/game_state.dart';
 import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
+import '../models/online_pending_effect.dart';
 import '../models/player.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
@@ -27,6 +28,7 @@ class OnlineGameScreen extends StatefulWidget {
 
 class _OnlineGameScreenState extends State<OnlineGameScreen> {
   bool isSavingMove = false;
+  bool isResolvingEffect = false;
   bool isOpeningRoundResult = false;
   bool finishedMatchWasRecorded = false;
 
@@ -41,7 +43,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     required OnlineGameSession session,
     required GameCard card,
   }) async {
-    if (isSavingMove) {
+    if (isSavingMove || session.pendingEffect != null) {
       return;
     }
 
@@ -106,6 +108,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
     try {
       final previousPlayerId = gameState.currentPlayer.id;
+      final isDetectiveCard = card.templateId == 'detetive';
 
       playCard(
         gameState: gameState,
@@ -113,15 +116,27 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       );
 
       if (!gameState.roundFinished &&
+          !isDetectiveCard &&
           gameState.currentPlayer.id == previousPlayerId) {
         gameState.moveToNextPlayer();
       }
 
+      final pendingEffect = isDetectiveCard
+          ? OnlinePendingEffect(
+              type: OnlineEffectType.detective,
+              actingPlayerId: player.id,
+              cardName: card.name,
+            )
+          : null;
+
       await RepositoryRegistry.onlineGame.saveCurrentSession(
-        session.copyWith(gameState: gameState),
+        session.copyWith(
+          gameState: gameState,
+          pendingEffect: pendingEffect,
+        ),
       );
 
-      if (_cardNeedsOnlineResolution(card)) {
+      if (_cardNeedsOnlineResolution(card) && !isDetectiveCard) {
         showMessage(
           'Efeito de ${card.name} será resolvido online em uma próxima etapa.',
         );
@@ -132,6 +147,92 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       if (mounted) {
         setState(() {
           isSavingMove = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveDetectiveTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final detectivePlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final resultMessage = resolveDetectiveEffect(
+        gameState: session.gameState,
+        detectivePlayer: detectivePlayer,
+        targetPlayer: target,
+      );
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage: resultMessage,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver o Detetive: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> acknowledgePendingEffect(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    final acknowledgedPlayerIds = {
+      ...effect.acknowledgedPlayerIds,
+      widget.currentPlayerId,
+    }.toList();
+    final expectedViewerIds = _expectedViewerIds(session);
+    final everyoneAcknowledged =
+        expectedViewerIds.every(acknowledgedPlayerIds.contains);
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        everyoneAcknowledged
+            ? session.copyWith(clearPendingEffect: true)
+            : session.copyWith(
+                pendingEffect: effect.copyWith(
+                  acknowledgedPlayerIds: acknowledgedPlayerIds,
+                ),
+              ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível confirmar a visualização: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
         });
       }
     }
@@ -207,7 +308,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return {
       'cumplice',
       'taca_envenenada',
-      'detetive',
       'toto',
       'xerife',
       'chave_enferrujada',
@@ -217,6 +317,17 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       'compartilhar',
       'rumores',
     }.contains(card.templateId);
+  }
+
+  Player _playerById(GameState gameState, String playerId) {
+    return gameState.players.firstWhere((player) => player.id == playerId);
+  }
+
+  List<String> _expectedViewerIds(OnlineGameSession session) {
+    return session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
   }
 
   void showMessage(String message) {
@@ -255,8 +366,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
               final currentPlayer = gameState.currentPlayer;
               final player = currentDevicePlayer(gameState);
               final isCurrentPlayer = player.id == currentPlayer.id;
+              final hasPendingEffect = session.pendingEffect != null;
 
-              if (gameState.roundFinished) {
+              if (gameState.roundFinished && !hasPendingEffect) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
                     openRoundResult(session);
@@ -283,7 +395,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Vez de ${currentPlayer.name}',
+                    hasPendingEffect
+                        ? 'Resolvendo efeito'
+                        : 'Vez de ${currentPlayer.name}',
                     style: const TextStyle(
                       fontSize: 18,
                       color: Color(0xFFE7C76F),
@@ -291,6 +405,23 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (session.pendingEffect != null) ...[
+                    _OnlinePendingEffectCard(
+                      session: session,
+                      currentPlayerId: widget.currentPlayerId,
+                      isResolvingEffect: isResolvingEffect,
+                      onDetectiveTargetSelected: (target) {
+                        resolveDetectiveTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onAcknowledge: () {
+                        acknowledgePendingEffect(session);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Card(
                     color: const Color(0xFF221229),
                     child: Padding(
@@ -298,9 +429,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Sua mão',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFE7C76F),
@@ -308,9 +439,11 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            isCurrentPlayer
-                                ? 'Escolha uma carta para jogar.'
-                                : 'Aguardando ${currentPlayer.name} jogar.',
+                            hasPendingEffect
+                                ? 'Aguarde a resolução do efeito.'
+                                : isCurrentPlayer
+                                    ? 'Escolha uma carta para jogar.'
+                                    : 'Aguardando ${currentPlayer.name} jogar.',
                             style: const TextStyle(color: Colors.white70),
                           ),
                           const SizedBox(height: 12),
@@ -321,6 +454,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                             )
                           else
                             ...player.hand.map((card) {
+                              final canPlay = isCurrentPlayer &&
+                                  !isSavingMove &&
+                                  !hasPendingEffect;
+
                               return Card(
                                 color: const Color(0xFF120818),
                                 child: ListTile(
@@ -332,11 +469,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                                   ),
                                   subtitle: Text(card.shortText),
                                   trailing: Icon(
-                                    isCurrentPlayer && !isSavingMove
-                                        ? Icons.play_arrow
-                                        : Icons.lock,
+                                    canPlay ? Icons.play_arrow : Icons.lock,
                                   ),
-                                  onTap: isCurrentPlayer && !isSavingMove
+                                  onTap: canPlay
                                       ? () => playOnlineCard(
                                             session: session,
                                             card: card,
@@ -350,99 +485,286 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Card(
-                    color: const Color(0xFF221229),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Mesa',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFE7C76F),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          ...gameState.players.map((tablePlayer) {
-                            final isCurrent =
-                                tablePlayer.id == currentPlayer.id;
-
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        isCurrent
-                                            ? Icons.play_arrow
-                                            : Icons.person,
-                                        size: 18,
-                                        color: isCurrent
-                                            ? const Color(0xFFE7C76F)
-                                            : Colors.white70,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          tablePlayer.name,
-                                          style: TextStyle(
-                                            fontWeight: isCurrent
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                          ),
-                                        ),
-                                      ),
-                                      Text(
-                                        '${tablePlayer.hand.length} carta${tablePlayer.hand.length == 1 ? '' : 's'}',
-                                        style: const TextStyle(
-                                          color: Colors.white60,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (tablePlayer.playedCards.isEmpty)
-                                    const Text(
-                                      'Nenhuma carta à frente.',
-                                      style: TextStyle(
-                                        color: Colors.white54,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    )
-                                  else
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children:
-                                          tablePlayer.playedCards.map((card) {
-                                        return Chip(
-                                          label: Text(card.name),
-                                          backgroundColor:
-                                              const Color(0xFF120818),
-                                          side: const BorderSide(
-                                            color: Color(0xFFE7C76F),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
+                  _OnlineTableCard(
+                    gameState: gameState,
+                    currentPlayer: currentPlayer,
                   ),
                 ],
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnlinePendingEffectCard extends StatelessWidget {
+  const _OnlinePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onDetectiveTargetSelected,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onDetectiveTargetSelected;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+
+    switch (effect.type) {
+      case OnlineEffectType.detective:
+        return _DetectivePendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onDetectiveTargetSelected,
+          onAcknowledge: onAcknowledge,
+        );
+    }
+  }
+}
+
+class _DetectivePendingEffectCard extends StatelessWidget {
+  const _DetectivePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final detectivePlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsDetective = currentPlayerId == detectivePlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      final isDetective = player.id == detectivePlayer.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      return !isDetective && hasCardsInHand;
+    }).toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.manage_search,
+                  color: Color(0xFFE7C76F),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Efeito do Detetive',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              effect.wasResolved
+                  ? '${detectivePlayer.name} acusou ${targetPlayer!.name}.'
+                  : '${detectivePlayer.name} deve escolher quem vai acusar.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            if (!effect.wasResolved) ...[
+              if (currentDeviceIsDetective)
+                ...availableTargets.map((target) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(target);
+                            },
+                      icon: const Icon(Icons.record_voice_over),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text('Acusar ${target.name}'),
+                      ),
+                    ),
+                  );
+                })
+              else
+                const Text(
+                  'Aguardando a acusação do Detetive.',
+                  style: TextStyle(color: Colors.white60),
+                ),
+            ] else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OnlineTableCard extends StatelessWidget {
+  const _OnlineTableCard({
+    required this.gameState,
+    required this.currentPlayer,
+  });
+
+  final GameState gameState;
+  final Player currentPlayer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Mesa',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE7C76F),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...gameState.players.map((tablePlayer) {
+              final isCurrent = tablePlayer.id == currentPlayer.id;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isCurrent ? Icons.play_arrow : Icons.person,
+                          size: 18,
+                          color: isCurrent
+                              ? const Color(0xFFE7C76F)
+                              : Colors.white70,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            tablePlayer.name,
+                            style: TextStyle(
+                              fontWeight: isCurrent
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${tablePlayer.hand.length} carta${tablePlayer.hand.length == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (tablePlayer.playedCards.isEmpty)
+                      const Text(
+                        'Nenhuma carta à frente.',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: tablePlayer.playedCards.map((card) {
+                          return Chip(
+                            label: Text(card.name),
+                            backgroundColor: const Color(0xFF120818),
+                            side: const BorderSide(
+                              color: Color(0xFFE7C76F),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );

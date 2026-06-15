@@ -1,4 +1,5 @@
 import 'game_state.dart';
+import 'online_pending_effect.dart';
 import 'online_room.dart';
 
 class OnlineGameSession {
@@ -8,6 +9,8 @@ class OnlineGameSession {
     required this.startedAt,
     required this.roundsPlayed,
     this.rematchProposalPlayerIds = const [],
+    this.nextRoundReadyPlayerIds = const [],
+    this.pendingEffect,
   });
 
   final OnlineRoom room;
@@ -15,6 +18,8 @@ class OnlineGameSession {
   final DateTime startedAt;
   final int roundsPlayed;
   final List<String> rematchProposalPlayerIds;
+  final List<String> nextRoundReadyPlayerIds;
+  final OnlinePendingEffect? pendingEffect;
 
   OnlineGameSession copyWith({
     OnlineRoom? room,
@@ -22,6 +27,9 @@ class OnlineGameSession {
     DateTime? startedAt,
     int? roundsPlayed,
     List<String>? rematchProposalPlayerIds,
+    List<String>? nextRoundReadyPlayerIds,
+    OnlinePendingEffect? pendingEffect,
+    bool clearPendingEffect = false,
   }) {
     return OnlineGameSession(
       room: room ?? this.room,
@@ -30,6 +38,11 @@ class OnlineGameSession {
       roundsPlayed: roundsPlayed ?? this.roundsPlayed,
       rematchProposalPlayerIds:
           rematchProposalPlayerIds ?? this.rematchProposalPlayerIds,
+      nextRoundReadyPlayerIds:
+          nextRoundReadyPlayerIds ?? this.nextRoundReadyPlayerIds,
+      pendingEffect: clearPendingEffect
+          ? null
+          : pendingEffect ?? this.pendingEffect,
     );
   }
 }

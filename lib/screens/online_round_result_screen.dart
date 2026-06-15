@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/online_game_session.dart';
+import '../models/player.dart';
 import '../models/round_result_type.dart';
 import '../repositories/online_game_session_factory.dart';
 import '../repositories/repository_registry.dart';
@@ -32,7 +33,21 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
 
   OnlineGameSession get session => widget.session;
 
-  Future<void> startNextRound() async {
+  Future<void> confirmReadyForNextRound(
+    OnlineGameSession session,
+    String playerId,
+  ) async {
+    final readyPlayerIds = {
+      ...session.nextRoundReadyPlayerIds,
+      playerId,
+    }.toList();
+
+    await RepositoryRegistry.onlineGame.saveCurrentSession(
+      session.copyWith(nextRoundReadyPlayerIds: readyPlayerIds),
+    );
+  }
+
+  Future<void> startNextRound(OnlineGameSession session) async {
     setState(() {
       isStartingNextRound = true;
     });
@@ -95,11 +110,16 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       initialData: session,
       builder: (context, snapshot) {
         final visibleSession = snapshot.data ?? session;
-        final proposalsAreComplete =
-            visibleSession.rematchProposalPlayerIds.length >=
-                visibleSession.gameState.players.length;
+        final expectedPlayerIds = _expectedPlayerIds(visibleSession);
         final currentDeviceIsHost =
             widget.currentPlayerId == visibleSession.room.hostPlayerId;
+        final matchFinished = _isMatchFinished(visibleSession);
+        final proposalsAreComplete = expectedPlayerIds.every(
+          visibleSession.rematchProposalPlayerIds.contains,
+        );
+        final readyForNextRoundIsComplete = expectedPlayerIds.every(
+          visibleSession.nextRoundReadyPlayerIds.contains,
+        );
 
         if (!visibleSession.gameState.roundFinished && !isOpeningStartedRound) {
           isOpeningStartedRound = true;
@@ -110,12 +130,23 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
             }
           });
         } else if (visibleSession.gameState.roundFinished &&
+            matchFinished &&
             proposalsAreComplete &&
             currentDeviceIsHost &&
             !isStartingRematch) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               startRematch(visibleSession);
+            }
+          });
+        } else if (visibleSession.gameState.roundFinished &&
+            !matchFinished &&
+            readyForNextRoundIsComplete &&
+            currentDeviceIsHost &&
+            !isStartingNextRound) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              startNextRound(visibleSession);
             }
           });
         }
@@ -135,13 +166,21 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
     final winners = gameState.players
         .where((player) => player.score == highestScore)
         .toList();
-    final currentDeviceIsHost = widget.currentPlayerId == session.room.hostPlayerId;
+    final expectedPlayerIds = _expectedPlayerIds(session);
     final currentPlayer = gameState.players.firstWhere(
       (player) => player.id == widget.currentPlayerId,
       orElse: () => gameState.players.first,
     );
     final currentPlayerProposed =
         session.rematchProposalPlayerIds.contains(currentPlayer.id);
+    final currentPlayerIsReadyForNextRound =
+        session.nextRoundReadyPlayerIds.contains(currentPlayer.id);
+    final rematchProposalCount = expectedPlayerIds
+        .where(session.rematchProposalPlayerIds.contains)
+        .length;
+    final readyForNextRoundCount = expectedPlayerIds
+        .where(session.nextRoundReadyPlayerIds.contains)
+        .length;
 
     return Scaffold(
       body: ShadowBackground(
@@ -268,69 +307,6 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (isMatchFinished) ...[
-                    const SizedBox(height: 24),
-                    Card(
-                      color: const Color(0xFF120818),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'Nova partida na mesma sala',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFE7C76F),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Quando todos aceitarem, uma nova partida com os mesmos jogadores será iniciada.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '${session.rematchProposalPlayerIds.length} de ${gameState.players.length} jogadores aceitaram.',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton.icon(
-                              onPressed: currentPlayerProposed ||
-                                      isStartingRematch
-                                  ? null
-                                  : () => proposeRematch(
-                                        session,
-                                        currentPlayer.id,
-                                      ),
-                              icon: Icon(
-                                currentPlayerProposed
-                                    ? Icons.check_circle
-                                    : Icons.how_to_vote,
-                              ),
-                              label: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                child: Text(
-                                  currentPlayerProposed
-                                      ? '${currentPlayer.name} aceitou'
-                                      : '${currentPlayer.name} propor nova partida',
-                                ),
-                              ),
-                            ),
-                            if (isStartingRematch) ...[
-                              const SizedBox(height: 8),
-                              const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
@@ -357,54 +333,46 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (isMatchFinished || currentDeviceIsHost)
+                  if (isMatchFinished)
+                    _RematchCard(
+                      currentPlayer: currentPlayer,
+                      proposalCount: rematchProposalCount,
+                      expectedCount: expectedPlayerIds.length,
+                      currentPlayerProposed: currentPlayerProposed,
+                      isStartingRematch: isStartingRematch,
+                      onPropose: () {
+                        proposeRematch(session, currentPlayer.id);
+                      },
+                    )
+                  else
+                    _NextRoundReadyCard(
+                      readyCount: readyForNextRoundCount,
+                      expectedCount: expectedPlayerIds.length,
+                      currentPlayerIsReady: currentPlayerIsReadyForNextRound,
+                      isStartingNextRound: isStartingNextRound,
+                      onConfirmReady: () {
+                        confirmReadyForNextRound(session, currentPlayer.id);
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                  if (isMatchFinished)
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: isMatchFinished
-                            ? () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const MatchHistoryScreen(),
-                                  ),
-                                );
-                              }
-                            : isStartingNextRound
-                                ? null
-                                : startNextRound,
-                        icon: Icon(
-                          isMatchFinished ? Icons.history : Icons.skip_next,
-                        ),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const MatchHistoryScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.history),
+                        label: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
                           child: Text(
-                            isMatchFinished
-                                ? 'Ver Histórico'
-                                : 'Próxima Rodada',
-                            style: const TextStyle(fontSize: 18),
+                            'Ver Histórico',
+                            style: TextStyle(fontSize: 18),
                           ),
-                        ),
-                      ),
-                    )
-                  else
-                    Card(
-                      color: const Color(0xFF120818),
-                      child: const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.hourglass_empty,
-                              color: Color(0xFFE7C76F),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Aguardando o anfitrião iniciar a próxima rodada.',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ),
@@ -447,5 +415,166 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       case RoundResultType.handcuffsWins:
         return 'As Algemas venceram!';
     }
+  }
+
+  List<String> _expectedPlayerIds(OnlineGameSession session) {
+    return session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+  }
+
+  bool _isMatchFinished(OnlineGameSession session) {
+    final highestScore = session.gameState.players
+        .map((player) => player.score)
+        .reduce((a, b) => a > b ? a : b);
+
+    return highestScore >= 5;
+  }
+}
+
+class _NextRoundReadyCard extends StatelessWidget {
+  const _NextRoundReadyCard({
+    required this.readyCount,
+    required this.expectedCount,
+    required this.currentPlayerIsReady,
+    required this.isStartingNextRound,
+    required this.onConfirmReady,
+  });
+
+  final int readyCount;
+  final int expectedCount;
+  final bool currentPlayerIsReady;
+  final bool isStartingNextRound;
+  final VoidCallback onConfirmReady;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF120818),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Próxima rodada',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE7C76F),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$readyCount de $expectedCount jogadores estão prontos.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: currentPlayerIsReady || isStartingNextRound
+                  ? null
+                  : onConfirmReady,
+              icon: Icon(
+                currentPlayerIsReady ? Icons.check_circle : Icons.visibility,
+              ),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  currentPlayerIsReady
+                      ? 'Você está pronto'
+                      : 'Estou pronto para a próxima rodada',
+                ),
+              ),
+            ),
+            if (isStartingNextRound) ...[
+              const SizedBox(height: 12),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              const Text(
+                'A próxima rodada começa quando todos estiverem prontos.',
+                style: TextStyle(color: Colors.white60),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RematchCard extends StatelessWidget {
+  const _RematchCard({
+    required this.currentPlayer,
+    required this.proposalCount,
+    required this.expectedCount,
+    required this.currentPlayerProposed,
+    required this.isStartingRematch,
+    required this.onPropose,
+  });
+
+  final Player currentPlayer;
+  final int proposalCount;
+  final int expectedCount;
+  final bool currentPlayerProposed;
+  final bool isStartingRematch;
+  final VoidCallback onPropose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF120818),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Nova partida na mesma sala',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE7C76F),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Quando todos aceitarem, uma nova partida com os mesmos jogadores será iniciada.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$proposalCount de $expectedCount jogadores aceitaram.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed:
+                  currentPlayerProposed || isStartingRematch ? null : onPropose,
+              icon: Icon(
+                currentPlayerProposed ? Icons.check_circle : Icons.how_to_vote,
+              ),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  currentPlayerProposed
+                      ? '${currentPlayer.name} aceitou'
+                      : '${currentPlayer.name} propor nova partida',
+                ),
+              ),
+            ),
+            if (isStartingRematch) ...[
+              const SizedBox(height: 8),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

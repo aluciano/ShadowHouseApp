@@ -8,6 +8,7 @@ import '../models/game_state.dart';
 import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
+import '../models/online_pending_effect.dart';
 import '../models/online_player.dart';
 import '../models/online_room.dart';
 import '../models/online_room_status.dart';
@@ -122,6 +123,10 @@ Map<String, Object?> onlineGameSessionToFirestore(
     'startedAt': Timestamp.fromDate(session.startedAt),
     'roundsPlayed': session.roundsPlayed,
     'rematchProposalPlayerIds': session.rematchProposalPlayerIds,
+    'nextRoundReadyPlayerIds': session.nextRoundReadyPlayerIds,
+    'pendingEffect': session.pendingEffect == null
+        ? null
+        : onlinePendingEffectToFirestore(session.pendingEffect!),
   };
 }
 
@@ -138,6 +143,46 @@ OnlineGameSession onlineGameSessionFromFirestore({
     roundsPlayed: data['roundsPlayed'] as int? ?? 1,
     rematchProposalPlayerIds: List<String>.from(
       data['rematchProposalPlayerIds'] as List<dynamic>? ?? [],
+    ),
+    nextRoundReadyPlayerIds: List<String>.from(
+      data['nextRoundReadyPlayerIds'] as List<dynamic>? ?? [],
+    ),
+    pendingEffect: data['pendingEffect'] == null
+        ? null
+        : onlinePendingEffectFromFirestore(
+            data['pendingEffect'] as Map<String, dynamic>,
+          ),
+  );
+}
+
+Map<String, Object?> onlinePendingEffectToFirestore(
+  OnlinePendingEffect effect,
+) {
+  return {
+    'type': effect.type.name,
+    'actingPlayerId': effect.actingPlayerId,
+    'cardName': effect.cardName,
+    'targetPlayerId': effect.targetPlayerId,
+    'resultMessage': effect.resultMessage,
+    'acknowledgedPlayerIds': effect.acknowledgedPlayerIds,
+  };
+}
+
+OnlinePendingEffect onlinePendingEffectFromFirestore(
+  Map<String, dynamic> data,
+) {
+  return OnlinePendingEffect(
+    type: _enumByName(
+      OnlineEffectType.values,
+      data['type'] as String?,
+      OnlineEffectType.detective,
+    ),
+    actingPlayerId: data['actingPlayerId'] as String,
+    cardName: data['cardName'] as String? ?? 'Efeito',
+    targetPlayerId: data['targetPlayerId'] as String?,
+    resultMessage: data['resultMessage'] as String?,
+    acknowledgedPlayerIds: List<String>.from(
+      data['acknowledgedPlayerIds'] as List<dynamic>? ?? [],
     ),
   );
 }

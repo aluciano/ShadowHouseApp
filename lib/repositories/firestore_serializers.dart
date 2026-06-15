@@ -1,11 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/card_type.dart';
+import '../models/game_card.dart';
 import '../models/game_mode.dart';
+import '../models/game_setup.dart';
+import '../models/game_state.dart';
 import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
+import '../models/online_game_session.dart';
 import '../models/online_player.dart';
 import '../models/online_room.dart';
 import '../models/online_room_status.dart';
+import '../models/player.dart';
+import '../models/player_type.dart';
+import '../models/round_result.dart';
+import '../models/round_result_type.dart';
 
 Map<String, Object?> onlinePlayerToFirestore(OnlinePlayer player) {
   return {
@@ -102,6 +111,205 @@ MatchHistoryEntry matchHistoryEntryFromFirestore({
     roundsPlayed: data['roundsPlayed'] as int? ?? 0,
     roomCode: data['roomCode'] as String?,
   );
+}
+
+Map<String, Object?> onlineGameSessionToFirestore(
+  OnlineGameSession session,
+) {
+  return {
+    'room': onlineRoomToFirestore(session.room),
+    'gameState': gameStateToFirestore(session.gameState),
+    'startedAt': Timestamp.fromDate(session.startedAt),
+    'roundsPlayed': session.roundsPlayed,
+    'rematchProposalPlayerIds': session.rematchProposalPlayerIds,
+  };
+}
+
+OnlineGameSession onlineGameSessionFromFirestore({
+  required OnlineRoom room,
+  required Map<String, dynamic> data,
+}) {
+  return OnlineGameSession(
+    room: room,
+    gameState: gameStateFromFirestore(
+      data['gameState'] as Map<String, dynamic>,
+    ),
+    startedAt: _dateTimeFromFirestore(data['startedAt']),
+    roundsPlayed: data['roundsPlayed'] as int? ?? 1,
+    rematchProposalPlayerIds: List<String>.from(
+      data['rematchProposalPlayerIds'] as List<dynamic>? ?? [],
+    ),
+  );
+}
+
+Map<String, Object?> gameStateToFirestore(GameState gameState) {
+  return {
+    'setup': gameSetupToFirestore(gameState.setup),
+    'players': gameState.players.map(playerToFirestore).toList(),
+    'deck': gameState.deck.map(gameCardToFirestore).toList(),
+    'currentPlayerIndex': gameState.currentPlayerIndex,
+    'initialDeckSize': gameState.initialDeckSize,
+    'roundFinished': gameState.roundFinished,
+    'roundResult': gameState.roundResult == null
+        ? null
+        : roundResultToFirestore(gameState.roundResult!),
+  };
+}
+
+GameState gameStateFromFirestore(Map<String, dynamic> data) {
+  final players = (data['players'] as List<dynamic>? ?? [])
+      .whereType<Map<String, dynamic>>()
+      .map(playerFromFirestore)
+      .toList();
+
+  return GameState(
+    setup: gameSetupFromFirestore(data['setup'] as Map<String, dynamic>),
+    players: players,
+    deck: (data['deck'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(gameCardFromFirestore)
+        .toList(),
+    currentPlayerIndex: data['currentPlayerIndex'] as int? ?? 0,
+    initialDeckSize: data['initialDeckSize'] as int? ?? 0,
+    roundFinished: data['roundFinished'] as bool? ?? false,
+    roundResult: data['roundResult'] == null
+        ? null
+        : roundResultFromFirestore(
+            data['roundResult'] as Map<String, dynamic>,
+            players,
+          ),
+  );
+}
+
+Map<String, Object?> gameSetupToFirestore(GameSetup setup) {
+  return {
+    'playerNames': setup.playerNames,
+    'gameMode': setup.gameMode.name,
+    'initialCards': setup.initialCards,
+    'ghostCopies': setup.ghostCopies,
+    'extraSilenceCopies': setup.extraSilenceCopies,
+    'extraSealedCardCopies': setup.extraSealedCardCopies,
+  };
+}
+
+GameSetup gameSetupFromFirestore(Map<String, dynamic> data) {
+  return GameSetup(
+    playerNames: List<String>.from(data['playerNames'] as List<dynamic>? ?? []),
+    gameMode: _enumByName(
+      GameMode.values,
+      data['gameMode'] as String?,
+      GameMode.expansionBalanced,
+    ),
+    initialCards: data['initialCards'] as int? ?? 4,
+    ghostCopies: data['ghostCopies'] as int? ?? 0,
+    extraSilenceCopies: data['extraSilenceCopies'] as int? ?? 0,
+    extraSealedCardCopies: data['extraSealedCardCopies'] as int? ?? 0,
+  );
+}
+
+Map<String, Object?> playerToFirestore(Player player) {
+  return {
+    'id': player.id,
+    'name': player.name,
+    'type': player.type.name,
+    'hand': player.hand.map(gameCardToFirestore).toList(),
+    'playedCards': player.playedCards.map(gameCardToFirestore).toList(),
+    'score': player.score,
+    'isAccomplice': player.isAccomplice,
+    'hasHandcuffs': player.hasHandcuffs,
+  };
+}
+
+Player playerFromFirestore(Map<String, dynamic> data) {
+  return Player(
+    id: data['id'] as String,
+    name: data['name'] as String,
+    type: _enumByName(
+      PlayerType.values,
+      data['type'] as String?,
+      PlayerType.remoteHuman,
+    ),
+    hand: (data['hand'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(gameCardFromFirestore)
+        .toList(),
+    playedCards: (data['playedCards'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(gameCardFromFirestore)
+        .toList(),
+    score: data['score'] as int? ?? 0,
+    isAccomplice: data['isAccomplice'] as bool? ?? false,
+    hasHandcuffs: data['hasHandcuffs'] as bool? ?? false,
+  );
+}
+
+Map<String, Object?> gameCardToFirestore(GameCard card) {
+  return {
+    'id': card.id,
+    'templateId': card.templateId,
+    'name': card.name,
+    'type': card.type.name,
+    'shortText': card.shortText,
+    'wasDiscarded': card.wasDiscarded,
+  };
+}
+
+GameCard gameCardFromFirestore(Map<String, dynamic> data) {
+  return GameCard(
+    id: data['id'] as String,
+    templateId: data['templateId'] as String,
+    name: data['name'] as String,
+    type: _enumByName(
+      CardType.values,
+      data['type'] as String?,
+      CardType.special,
+    ),
+    shortText: data['shortText'] as String,
+    wasDiscarded: data['wasDiscarded'] as bool? ?? false,
+  );
+}
+
+Map<String, Object?> roundResultToFirestore(RoundResult result) {
+  return {
+    'type': result.type.name,
+    'winnerPlayerId': result.winner?.id,
+    'reason': result.reason,
+    'scoringSummary': result.scoringSummary,
+    'roundPointsByPlayerId': result.roundPointsByPlayerId,
+  };
+}
+
+RoundResult roundResultFromFirestore(
+  Map<String, dynamic> data,
+  List<Player> players,
+) {
+  final winnerPlayerId = data['winnerPlayerId'] as String?;
+
+  return RoundResult(
+    type: _enumByName(
+      RoundResultType.values,
+      data['type'] as String?,
+      RoundResultType.guiltyWins,
+    ),
+    winner: winnerPlayerId == null
+        ? null
+        : _playerByIdOrNull(players, winnerPlayerId),
+    reason: data['reason'] as String? ?? '',
+    scoringSummary: data['scoringSummary'] as String? ?? '',
+    roundPointsByPlayerId: Map<String, int>.from(
+      data['roundPointsByPlayerId'] as Map<String, dynamic>? ?? {},
+    ),
+  );
+}
+
+Player? _playerByIdOrNull(List<Player> players, String playerId) {
+  for (final player in players) {
+    if (player.id == playerId) {
+      return player;
+    }
+  }
+
+  return null;
 }
 
 DateTime _dateTimeFromFirestore(Object? value) {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../engine/game_engine.dart';
 import '../models/online_game_session.dart';
 import '../models/round_result_type.dart';
+import '../repositories/online_game_session_factory.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import '../widgets/shadow_scrollable_content.dart';
@@ -14,9 +14,11 @@ class OnlineRoundResultScreen extends StatefulWidget {
   const OnlineRoundResultScreen({
     super.key,
     required this.session,
+    required this.currentPlayerId,
   });
 
   final OnlineGameSession session;
+  final String currentPlayerId;
 
   @override
   State<OnlineRoundResultScreen> createState() =>
@@ -24,20 +26,43 @@ class OnlineRoundResultScreen extends StatefulWidget {
 }
 
 class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
-  final Set<String> rematchProposalPlayerIds = {};
+  bool isStartingNextRound = false;
   bool isStartingRematch = false;
+  bool isOpeningStartedRound = false;
 
   OnlineGameSession get session => widget.session;
 
-  Future<void> proposeRematch(String playerId) async {
+  Future<void> startNextRound() async {
     setState(() {
-      rematchProposalPlayerIds.add(playerId);
+      isStartingNextRound = true;
     });
 
-    if (rematchProposalPlayerIds.length != session.gameState.players.length) {
+    final nextSession = createNextOnlineRoundSession(session);
+
+    await RepositoryRegistry.onlineGame.saveCurrentSession(nextSession);
+
+    if (!mounted) {
       return;
     }
 
+    openGame(nextSession);
+  }
+
+  Future<void> proposeRematch(
+    OnlineGameSession session,
+    String playerId,
+  ) async {
+    final proposals = {
+      ...session.rematchProposalPlayerIds,
+      playerId,
+    }.toList();
+
+    await RepositoryRegistry.onlineGame.saveCurrentSession(
+      session.copyWith(rematchProposalPlayerIds: proposals),
+    );
+  }
+
+  Future<void> startRematch(OnlineGameSession session) async {
     setState(() {
       isStartingRematch = true;
     });
@@ -49,11 +74,15 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       return;
     }
 
+    openGame(nextSession);
+  }
+
+  void openGame(OnlineGameSession nextSession) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => OnlineGameScreen(
           session: nextSession,
-          initialViewedPlayerId: nextSession.gameState.currentPlayer.id,
+          currentPlayerId: widget.currentPlayerId,
         ),
       ),
     );
@@ -61,6 +90,42 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<OnlineGameSession>(
+      stream: RepositoryRegistry.onlineGame.watchCurrentSession(session.room),
+      initialData: session,
+      builder: (context, snapshot) {
+        final visibleSession = snapshot.data ?? session;
+        final proposalsAreComplete =
+            visibleSession.rematchProposalPlayerIds.length >=
+                visibleSession.gameState.players.length;
+        final currentDeviceIsHost =
+            widget.currentPlayerId == visibleSession.room.hostPlayerId;
+
+        if (!visibleSession.gameState.roundFinished && !isOpeningStartedRound) {
+          isOpeningStartedRound = true;
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              openGame(visibleSession);
+            }
+          });
+        } else if (visibleSession.gameState.roundFinished &&
+            proposalsAreComplete &&
+            currentDeviceIsHost &&
+            !isStartingRematch) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              startRematch(visibleSession);
+            }
+          });
+        }
+
+        return buildContent(context, visibleSession);
+      },
+    );
+  }
+
+  Widget buildContent(BuildContext context, OnlineGameSession session) {
     final gameState = session.gameState;
     final result = gameState.roundResult;
     final highestScore = gameState.players
@@ -70,6 +135,13 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
     final winners = gameState.players
         .where((player) => player.score == highestScore)
         .toList();
+    final currentDeviceIsHost = widget.currentPlayerId == session.room.hostPlayerId;
+    final currentPlayer = gameState.players.firstWhere(
+      (player) => player.id == widget.currentPlayerId,
+      orElse: () => gameState.players.first,
+    );
+    final currentPlayerProposed =
+        session.rematchProposalPlayerIds.contains(currentPlayer.id);
 
     return Scaffold(
       body: ShadowBackground(
@@ -219,34 +291,35 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                               style: TextStyle(color: Colors.white70),
                             ),
                             const SizedBox(height: 12),
-                            ...gameState.players.map((player) {
-                              final proposed = rematchProposalPlayerIds
-                                  .contains(player.id);
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: OutlinedButton.icon(
-                                  onPressed: proposed || isStartingRematch
-                                      ? null
-                                      : () => proposeRematch(player.id),
-                                  icon: Icon(
-                                    proposed
-                                        ? Icons.check_circle
-                                        : Icons.how_to_vote,
-                                  ),
-                                  label: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    child: Text(
-                                      proposed
-                                          ? '${player.name} aceitou'
-                                          : '${player.name} propor nova partida',
-                                    ),
-                                  ),
+                            Text(
+                              '${session.rematchProposalPlayerIds.length} de ${gameState.players.length} jogadores aceitaram.',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: currentPlayerProposed ||
+                                      isStartingRematch
+                                  ? null
+                                  : () => proposeRematch(
+                                        session,
+                                        currentPlayer.id,
+                                      ),
+                              icon: Icon(
+                                currentPlayerProposed
+                                    ? Icons.check_circle
+                                    : Icons.how_to_vote,
+                              ),
+                              label: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
                                 ),
-                              );
-                            }),
+                                child: Text(
+                                  currentPlayerProposed
+                                      ? '${currentPlayer.name} aceitou'
+                                      : '${currentPlayer.name} propor nova partida',
+                                ),
+                              ),
+                            ),
                             if (isStartingRematch) ...[
                               const SizedBox(height: 8),
                               const Center(
@@ -284,50 +357,57 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: isMatchFinished
-                          ? () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const MatchHistoryScreen(),
-                                ),
-                              );
-                            }
-                          : () {
-                              final nextRoundState = createNextRoundGameState(
-                                gameState,
-                              );
-                              final nextSession = OnlineGameSession(
-                                room: session.room,
-                                gameState: nextRoundState,
-                                startedAt: session.startedAt,
-                                roundsPlayed: session.roundsPlayed + 1,
-                              );
-
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (_) => OnlineGameScreen(
-                                    session: nextSession,
-                                    initialViewedPlayerId:
-                                        nextRoundState.currentPlayer.id,
+                  if (isMatchFinished || currentDeviceIsHost)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: isMatchFinished
+                            ? () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const MatchHistoryScreen(),
                                   ),
-                                ),
-                              );
-                            },
-                      icon: Icon(
-                        isMatchFinished ? Icons.history : Icons.skip_next,
+                                );
+                              }
+                            : isStartingNextRound
+                                ? null
+                                : startNextRound,
+                        icon: Icon(
+                          isMatchFinished ? Icons.history : Icons.skip_next,
+                        ),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Text(
+                            isMatchFinished
+                                ? 'Ver Histórico'
+                                : 'Próxima Rodada',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                        ),
                       ),
-                      label: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Text(
-                          isMatchFinished ? 'Ver Histórico' : 'Próxima Rodada',
-                          style: const TextStyle(fontSize: 18),
+                    )
+                  else
+                    Card(
+                      color: const Color(0xFF120818),
+                      child: const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.hourglass_empty,
+                              color: Color(0xFFE7C76F),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Aguardando o anfitrião iniciar a próxima rodada.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,

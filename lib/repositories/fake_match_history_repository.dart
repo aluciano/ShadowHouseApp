@@ -52,6 +52,17 @@ class FakeMatchHistoryRepository implements MatchHistoryRepository {
   Future<void> saveMatch(MatchHistoryEntry entry) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
 
+    _history.removeWhere((item) {
+      return _deduplicationKey(item) == _deduplicationKey(entry);
+    });
     _history.insert(0, entry);
+  }
+
+  String _deduplicationKey(MatchHistoryEntry entry) {
+    return [
+      entry.playMode.name,
+      entry.roomCode ?? entry.id,
+      entry.startedAt.microsecondsSinceEpoch,
+    ].join('_');
   }
 }

@@ -44,18 +44,45 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
     openGame(session);
   }
 
-  void openGame(OnlineGameSession session) {
+  Future<void> openStartedRoom(OnlineRoom room) async {
     if (isOpeningGame) {
       return;
     }
 
     isOpeningGame = true;
 
+    try {
+      final session = await RepositoryRegistry.onlineGame.loadCurrentSession(
+        room,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      openGame(session);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      isOpeningGame = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
+  void openGame(OnlineGameSession session) {
+    if (!isOpeningGame) {
+      isOpeningGame = true;
+    }
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => OnlineGameScreen(
           session: session,
-          initialViewedPlayerId: session.gameState.currentPlayer.id,
+          currentPlayerId: widget.currentPlayerId,
         ),
       ),
     );
@@ -93,6 +120,16 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
               final hostName =
                   room.players.firstWhere((player) => player.isHost).name;
               final isHost = currentPlayer.isHost;
+              final isGameInProgress =
+                  room.status == OnlineRoomStatus.inProgress;
+
+              if (isGameInProgress) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    openStartedRoom(room);
+                  }
+                });
+              }
 
               return ListView(
                 children: [
@@ -206,21 +243,21 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  if (room.status == OnlineRoomStatus.inProgress)
+                  if (isGameInProgress)
                     Card(
                       color: const Color(0xFF120818),
                       child: const Padding(
                         padding: EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.play_circle,
-                              color: Color(0xFFE7C76F),
+                            SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                             SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'A partida foi iniciada. A entrada automática dos convidados vem na próxima etapa.',
+                                'Abrindo a partida...',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 16,

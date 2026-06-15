@@ -23,6 +23,10 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     return firestore.collection('rooms');
   }
 
+  DocumentReference<Map<String, dynamic>> _currentSessionRef(String roomId) {
+    return _rooms.doc(roomId).collection('sessions').doc('current');
+  }
+
   @override
   Future<OnlineRoom> createRoom({
     required String hostName,
@@ -106,10 +110,17 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
   Future<OnlineGameSession> startGame(OnlineRoom room) async {
     final session = createOnlineGameSessionForRoom(room);
 
-    await _rooms.doc(room.id).set(
-          onlineRoomToFirestore(session.room),
-          SetOptions(merge: true),
-        );
+    await firestore.runTransaction((transaction) async {
+      transaction.set(
+        _currentSessionRef(room.id),
+        onlineGameSessionToFirestore(session),
+      );
+      transaction.set(
+        _rooms.doc(room.id),
+        onlineRoomToFirestore(session.room),
+        SetOptions(merge: true),
+      );
+    });
 
     return session;
   }
@@ -127,12 +138,63 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     );
     final session = createOnlineGameSessionForRoom(resetRoom);
 
-    await _rooms.doc(room.id).set(
-          onlineRoomToFirestore(session.room),
-          SetOptions(merge: true),
-        );
+    await firestore.runTransaction((transaction) async {
+      transaction.set(
+        _currentSessionRef(room.id),
+        onlineGameSessionToFirestore(session),
+      );
+      transaction.set(
+        _rooms.doc(room.id),
+        onlineRoomToFirestore(session.room),
+        SetOptions(merge: true),
+      );
+    });
 
     return session;
+  }
+
+  @override
+  Future<OnlineGameSession> loadCurrentSession(OnlineRoom room) async {
+    final sessionSnapshot = await _currentSessionRef(room.id).get();
+
+    if (!sessionSnapshot.exists || sessionSnapshot.data() == null) {
+      throw StateError('A partida ainda não está pronta.');
+    }
+
+    return onlineGameSessionFromFirestore(
+      room: room,
+      data: sessionSnapshot.data()!,
+    );
+  }
+
+  @override
+  Stream<OnlineGameSession> watchCurrentSession(OnlineRoom room) {
+    return _currentSessionRef(room.id).snapshots().where((snapshot) {
+      return snapshot.exists && snapshot.data() != null;
+    }).map((snapshot) {
+      return onlineGameSessionFromFirestore(
+        room: room,
+        data: snapshot.data()!,
+      );
+    });
+  }
+
+  @override
+  Future<void> saveCurrentSession(OnlineGameSession session) async {
+    final updatedRoom = _roomWithCurrentPlayer(session);
+    final updatedSession = session.copyWith(room: updatedRoom);
+
+    await firestore.runTransaction((transaction) async {
+      transaction.set(
+        _currentSessionRef(session.room.id),
+        onlineGameSessionToFirestore(updatedSession),
+      );
+      transaction.set(
+        _rooms.doc(session.room.id),
+        onlineRoomToFirestore(updatedRoom),
+        SetOptions(merge: true),
+      );
+    });
   }
 
   @override
@@ -145,6 +207,19 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         data: snapshot.data()!,
       );
     });
+  }
+
+  OnlineRoom _roomWithCurrentPlayer(OnlineGameSession session) {
+    return OnlineRoom(
+      id: session.room.id,
+      code: session.room.code,
+      hostPlayerId: session.room.hostPlayerId,
+      players: session.room.players,
+      gameMode: session.room.gameMode,
+      createdAt: session.room.createdAt,
+      status: session.room.status,
+      currentPlayerId: session.gameState.currentPlayer.id,
+    );
   }
 
   Future<String> _createUniqueRoomCode() async {

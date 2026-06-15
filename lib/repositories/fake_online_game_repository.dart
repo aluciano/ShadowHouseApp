@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/game_mode.dart';
 import '../models/online_game_session.dart';
 import '../models/online_player.dart';
@@ -12,6 +14,9 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
   static final FakeOnlineGameRepository instance = FakeOnlineGameRepository._();
 
   OnlineRoom? _latestRoom;
+  OnlineGameSession? _latestSession;
+  final StreamController<OnlineGameSession> _sessionController =
+      StreamController<OnlineGameSession>.broadcast();
 
   @override
   Future<OnlineRoom> createRoom({
@@ -100,6 +105,31 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
   }
 
   @override
+  Future<OnlineGameSession> loadCurrentSession(OnlineRoom room) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+
+    return _latestSession ?? _createSessionForRoom(room);
+  }
+
+  @override
+  Stream<OnlineGameSession> watchCurrentSession(OnlineRoom room) async* {
+    final session = _latestSession;
+
+    if (session != null) {
+      yield session;
+    }
+
+    yield* _sessionController.stream;
+  }
+
+  @override
+  Future<void> saveCurrentSession(OnlineGameSession session) async {
+    _latestSession = session;
+    _latestRoom = session.room;
+    _sessionController.add(session);
+  }
+
+  @override
   Stream<OnlineRoom> watchRoom(String roomId) async* {
     final room = _latestRoom;
 
@@ -112,6 +142,8 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     final session = createOnlineGameSessionForRoom(room);
 
     _latestRoom = session.room;
+    _latestSession = session;
+    _sessionController.add(session);
 
     return session;
   }

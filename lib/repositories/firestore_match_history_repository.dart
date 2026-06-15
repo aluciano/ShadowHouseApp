@@ -22,12 +22,14 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
         .limit(30)
         .get();
 
-    return snapshot.docs.map((doc) {
+    final entries = snapshot.docs.map((doc) {
       return matchHistoryEntryFromFirestore(
         id: doc.id,
         data: doc.data(),
       );
     }).toList();
+
+    return _withoutDuplicatedOnlineMatches(entries);
   }
 
   @override
@@ -35,5 +37,25 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
     await _matches.doc(entry.id).set(
           matchHistoryEntryToFirestore(entry),
         );
+  }
+
+  List<MatchHistoryEntry> _withoutDuplicatedOnlineMatches(
+    List<MatchHistoryEntry> entries,
+  ) {
+    final entriesByKey = <String, MatchHistoryEntry>{};
+
+    for (final entry in entries) {
+      entriesByKey.putIfAbsent(_deduplicationKey(entry), () => entry);
+    }
+
+    return entriesByKey.values.toList();
+  }
+
+  String _deduplicationKey(MatchHistoryEntry entry) {
+    return [
+      entry.playMode.name,
+      entry.roomCode ?? entry.id,
+      entry.startedAt.microsecondsSinceEpoch,
+    ].join('_');
   }
 }

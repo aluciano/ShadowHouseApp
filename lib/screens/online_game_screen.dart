@@ -69,7 +69,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     final isLastCardInHand = viewedPlayer.hand.length == 1;
 
     if (isGuiltyCard && !isLastCardInHand) {
-      showMessage('Voce so pode jogar o Culpado como ultima carta da mao.');
+      showMessage('Você só pode jogar o Culpado como última carta da mão.');
       return;
     }
 
@@ -124,7 +124,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
     if (_cardNeedsOnlineResolution(card)) {
       showMessage(
-        'Efeito de ${card.name} sera resolvido online em uma proxima etapa.',
+        'Efeito de ${card.name} será resolvido online em uma próxima etapa.',
       );
     }
   }
@@ -256,7 +256,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Mao de ${selectedPlayer.name}',
+                        'Mão de ${selectedPlayer.name}',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -267,13 +267,13 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       Text(
                         isViewingCurrentPlayer
                             ? 'Escolha uma carta para jogar.'
-                            : 'Este jogador esta aguardando a propria vez.',
+                            : 'Este jogador está aguardando a própria vez.',
                         style: const TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 12),
                       if (selectedPlayer.hand.isEmpty)
                         const Text(
-                          'Nenhuma carta na mao.',
+                          'Nenhuma carta na mão.',
                           style: TextStyle(color: Colors.white54),
                         )
                       else

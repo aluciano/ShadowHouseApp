@@ -67,7 +67,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
         if (baseRoom == null)
           const OnlinePlayer(
             id: 'player_host',
-            name: 'Anfitriao',
+            name: 'Anfitrião',
             isHost: true,
             isReady: true,
           )
@@ -97,6 +97,15 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     return _createSessionForRoom(room);
+  }
+
+  @override
+  Stream<OnlineRoom> watchRoom(String roomId) async* {
+    final room = _latestRoom;
+
+    if (room != null && room.id == roomId) {
+      yield room;
+    }
   }
 
   OnlineGameSession _createSessionForRoom(OnlineRoom room) {

@@ -130,7 +130,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Pontuacao da rodada',
+                      'Pontuação da rodada',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 18,
@@ -179,7 +179,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                   }),
                   const SizedBox(height: 24),
                   Text(
-                    isMatchFinished ? 'Vencedor' : 'Lideranca',
+                    isMatchFinished ? 'Vencedor' : 'Liderança',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
@@ -215,7 +215,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Quando todos aceitarem, uma nova partida com os mesmos jogadores sera iniciada.',
+                              'Quando todos aceitarem, uma nova partida com os mesmos jogadores será iniciada.',
                               style: TextStyle(color: Colors.white70),
                             ),
                             const SizedBox(height: 12),
@@ -322,7 +322,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       label: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          isMatchFinished ? 'Ver Historico' : 'Proxima Rodada',
+                          isMatchFinished ? 'Ver Histórico' : 'Próxima Rodada',
                           style: const TextStyle(fontSize: 18),
                         ),
                       ),
@@ -363,7 +363,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       case RoundResultType.detectiveWins:
         return 'O Detetive venceu a rodada!';
       case RoundResultType.totoWins:
-        return 'Toto venceu a rodada!';
+        return 'Totó venceu a rodada!';
       case RoundResultType.handcuffsWins:
         return 'As Algemas venceram!';
     }

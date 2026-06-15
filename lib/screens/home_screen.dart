@@ -115,7 +115,7 @@ class HomeScreen extends StatelessWidget {
                       label: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          'Historico',
+                          'Histórico',
                           style: TextStyle(fontSize: 18),
                         ),
                       ),

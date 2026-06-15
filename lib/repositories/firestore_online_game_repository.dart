@@ -63,7 +63,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         .get();
 
     if (roomQuery.docs.isEmpty) {
-      throw StateError('Sala nao encontrada.');
+      throw StateError('Sala não encontrada.');
     }
 
     final roomDoc = roomQuery.docs.first;
@@ -73,7 +73,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     );
 
     if (room.status != OnlineRoomStatus.waiting) {
-      throw StateError('Esta sala ja iniciou uma partida.');
+      throw StateError('Esta sala já iniciou uma partida.');
     }
 
     final now = DateTime.now();
@@ -135,6 +135,18 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     return session;
   }
 
+  @override
+  Stream<OnlineRoom> watchRoom(String roomId) {
+    return _rooms.doc(roomId).snapshots().where((snapshot) {
+      return snapshot.exists && snapshot.data() != null;
+    }).map((snapshot) {
+      return onlineRoomFromFirestore(
+        id: snapshot.id,
+        data: snapshot.data()!,
+      );
+    });
+  }
+
   Future<String> _createUniqueRoomCode() async {
     for (int attempt = 0; attempt < 10; attempt++) {
       final code = _createRoomCode();
@@ -148,7 +160,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       }
     }
 
-    throw StateError('Nao foi possivel criar um codigo de sala.');
+    throw StateError('Não foi possível criar um código de sala.');
   }
 
   String _createRoomCode() {

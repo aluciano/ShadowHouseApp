@@ -27,7 +27,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historico'),
+        title: const Text('Histórico'),
         backgroundColor: const Color(0xFF120818),
       ),
       body: ShadowBackground(
@@ -56,7 +56,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
               return ListView(
                 children: [
                   const Text(
-                    'Historico de Partidas',
+                    'Histórico de Partidas',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -64,7 +64,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Partidas locais e online finalizadas ficarao salvas aqui.',
+                    'Partidas locais e online finalizadas ficarão salvas aqui.',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white70,
@@ -111,7 +111,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Inicio: ${_formatTime(entry.startedAt)}',
+                              'Início: ${_formatTime(entry.startedAt)}',
                               style: const TextStyle(color: Colors.white60),
                             ),
                             const SizedBox(height: 4),

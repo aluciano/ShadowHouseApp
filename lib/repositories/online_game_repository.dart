@@ -16,4 +16,6 @@ abstract class OnlineGameRepository {
   Future<OnlineGameSession> startGame(OnlineRoom room);
 
   Future<OnlineGameSession> startNewMatchInSameRoom(OnlineRoom room);
+
+  Stream<OnlineRoom> watchRoom(String roomId);
 }

@@ -20,6 +20,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   final roomCodeController = TextEditingController();
 
   GameMode selectedGameMode = GameMode.expansionBalanced;
+  bool isCreatingTab = true;
   bool isCreatingRoom = false;
   bool isJoiningRoom = false;
 
@@ -90,7 +91,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
     }
 
     if (roomCode.isEmpty) {
-      showMessage('Informe o codigo da sala.');
+      showMessage('Informe o código da sala.');
       return;
     }
 
@@ -163,11 +164,32 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Crie uma sala ou entre com um codigo compartilhado.',
+                'Crie uma sala ou entre com um código compartilhado.',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white70,
                 ),
+              ),
+              const SizedBox(height: 24),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.add),
+                    label: Text('Criar'),
+                  ),
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.login),
+                    label: Text('Entrar'),
+                  ),
+                ],
+                selected: {isCreatingTab},
+                onSelectionChanged: (selection) {
+                  setState(() {
+                    isCreatingTab = selection.first;
+                  });
+                },
               ),
               const SizedBox(height: 24),
               TextField(
@@ -180,74 +202,74 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Modo da sala',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...GameMode.values.map((mode) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: GameModeOptionCard(
-                    title: GameSetupRules.titleForMode(mode),
-                    description: GameSetupRules.descriptionForMode(mode),
-                    selected: selectedGameMode == mode,
-                    onTap: () {
-                      setState(() {
-                        selectedGameMode = mode;
-                      });
-                    },
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: isCreatingRoom ? null : createRoom,
-                icon: isCreatingRoom
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Criar Sala',
-                    style: TextStyle(fontSize: 18),
+              if (isCreatingTab) ...[
+                const Text(
+                  'Modo da sala',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(height: 28),
-              const Divider(),
-              const SizedBox(height: 20),
-              TextField(
-                controller: roomCodeController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Codigo da sala',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: isJoiningRoom ? null : joinRoom,
-                icon: isJoiningRoom
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.login),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Entrar na Sala',
-                    style: TextStyle(fontSize: 18),
+                const SizedBox(height: 12),
+                ...GameMode.values.map((mode) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GameModeOptionCard(
+                      title: GameSetupRules.titleForMode(mode),
+                      description: GameSetupRules.descriptionForMode(mode),
+                      selected: selectedGameMode == mode,
+                      onTap: () {
+                        setState(() {
+                          selectedGameMode = mode;
+                        });
+                      },
+                    ),
+                  );
+                }),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: isCreatingRoom ? null : createRoom,
+                  icon: isCreatingRoom
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      'Criar Sala',
+                      style: TextStyle(fontSize: 18),
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                TextField(
+                  controller: roomCodeController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Código da sala',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isJoiningRoom ? null : joinRoom,
+                  icon: isJoiningRoom
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      'Entrar na Sala',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

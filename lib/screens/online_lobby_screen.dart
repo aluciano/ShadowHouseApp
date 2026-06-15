@@ -178,26 +178,48 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: isHost
-                    ? isStartingGame
-                        ? null
-                        : startGame
-                    : null,
-                icon: isStartingGame
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Iniciar Partida Online',
-                    style: TextStyle(fontSize: 18),
+              if (isHost)
+                FilledButton.icon(
+                  onPressed: isStartingGame ? null : startGame,
+                  icon: isStartingGame
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      'Iniciar Partida Online',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  color: const Color(0xFF120818),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.hourglass_empty,
+                          color: Color(0xFFE7C76F),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Aguardando ${widget.room.players.firstWhere((player) => player.isHost).name} iniciar a partida.',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () {

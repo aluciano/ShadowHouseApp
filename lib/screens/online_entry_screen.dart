@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/game_mode.dart';
+import '../models/online_room.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/game_mode_option_card.dart';
 import '../widgets/shadow_background.dart';
@@ -42,10 +43,24 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       isCreatingRoom = true;
     });
 
-    final room = await RepositoryRegistry.onlineGame.createRoom(
-      hostName: playerName,
-      gameMode: selectedGameMode,
-    );
+    late final OnlineRoom room;
+
+    try {
+      room = await RepositoryRegistry.onlineGame.createRoom(
+        hostName: playerName,
+        gameMode: selectedGameMode,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isCreatingRoom = false;
+      });
+      showMessage(error.toString());
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -83,10 +98,24 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       isJoiningRoom = true;
     });
 
-    final room = await RepositoryRegistry.onlineGame.joinRoom(
-      roomCode: roomCode,
-      playerName: playerName,
-    );
+    late final OnlineRoom room;
+
+    try {
+      room = await RepositoryRegistry.onlineGame.joinRoom(
+        roomCode: roomCode,
+        playerName: playerName,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isJoiningRoom = false;
+      });
+      showMessage(error.toString());
+      return;
+    }
 
     if (!mounted) {
       return;

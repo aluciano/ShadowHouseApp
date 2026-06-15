@@ -6,14 +6,16 @@ import '../models/online_game_session.dart';
 import '../models/online_player.dart';
 import '../models/online_room.dart';
 import '../models/online_room_status.dart';
+import 'online_game_repository.dart';
 
-class FakeOnlineGameRepository {
+class FakeOnlineGameRepository implements OnlineGameRepository {
   FakeOnlineGameRepository._();
 
   static final FakeOnlineGameRepository instance = FakeOnlineGameRepository._();
 
   OnlineRoom? _latestRoom;
 
+  @override
   Future<OnlineRoom> createRoom({
     required String hostName,
     required GameMode gameMode,
@@ -43,6 +45,7 @@ class FakeOnlineGameRepository {
     return room;
   }
 
+  @override
   Future<OnlineRoom> joinRoom({
     required String roomCode,
     required String playerName,
@@ -84,12 +87,14 @@ class FakeOnlineGameRepository {
     return room;
   }
 
+  @override
   Future<OnlineGameSession> startGame(OnlineRoom room) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     return _createSessionForRoom(room);
   }
 
+  @override
   Future<OnlineGameSession> startNewMatchInSameRoom(OnlineRoom room) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 

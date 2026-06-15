@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/game_setup_rules.dart';
 import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
-import '../repositories/fake_match_history_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 
 class MatchHistoryScreen extends StatefulWidget {
@@ -20,7 +20,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
   void initState() {
     super.initState();
 
-    historyFuture = FakeMatchHistoryRepository.instance.loadHistory();
+    historyFuture = RepositoryRegistry.matchHistory.loadHistory();
   }
 
   @override

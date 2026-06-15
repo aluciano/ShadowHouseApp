@@ -7,7 +7,7 @@ import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
 import '../models/player.dart';
-import '../repositories/fake_match_history_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import 'online_round_result_screen.dart';
 
@@ -144,7 +144,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
           .map((player) => player.name)
           .toList();
 
-      await FakeMatchHistoryRepository.instance.saveMatch(
+      await RepositoryRegistry.matchHistory.saveMatch(
         MatchHistoryEntry(
           id: 'online_${finishedAt.microsecondsSinceEpoch}',
           playMode: MatchPlayMode.online,

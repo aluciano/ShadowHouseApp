@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/online_room.dart';
-import '../repositories/fake_online_game_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import 'online_game_screen.dart';
 
@@ -28,7 +28,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen> {
       isStartingGame = true;
     });
 
-    final session = await FakeOnlineGameRepository.instance.startGame(
+    final session = await RepositoryRegistry.onlineGame.startGame(
       widget.room,
     );
 

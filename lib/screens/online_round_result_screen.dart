@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../engine/game_engine.dart';
 import '../models/online_game_session.dart';
 import '../models/round_result_type.dart';
-import '../repositories/fake_online_game_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import '../widgets/shadow_scrollable_content.dart';
 import 'match_history_screen.dart';
@@ -42,7 +42,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       isStartingRematch = true;
     });
 
-    final nextSession = await FakeOnlineGameRepository.instance
+    final nextSession = await RepositoryRegistry.onlineGame
         .startNewMatchInSameRoom(session.room);
 
     if (!mounted) {

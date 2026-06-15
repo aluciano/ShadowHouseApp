@@ -1,8 +1,9 @@
 import '../models/game_mode.dart';
 import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
+import 'match_history_repository.dart';
 
-class FakeMatchHistoryRepository {
+class FakeMatchHistoryRepository implements MatchHistoryRepository {
   FakeMatchHistoryRepository._();
 
   static final FakeMatchHistoryRepository instance =
@@ -40,12 +41,14 @@ class FakeMatchHistoryRepository {
     ),
   ];
 
+  @override
   Future<List<MatchHistoryEntry>> loadHistory() async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
     return List.unmodifiable(_history);
   }
 
+  @override
   Future<void> saveMatch(MatchHistoryEntry entry) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
 

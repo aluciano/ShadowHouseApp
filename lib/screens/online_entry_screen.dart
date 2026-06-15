@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/game_mode.dart';
-import '../repositories/fake_online_game_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../widgets/game_mode_option_card.dart';
 import '../widgets/shadow_background.dart';
 import 'online_lobby_screen.dart';
@@ -42,7 +42,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       isCreatingRoom = true;
     });
 
-    final room = await FakeOnlineGameRepository.instance.createRoom(
+    final room = await RepositoryRegistry.onlineGame.createRoom(
       hostName: playerName,
       gameMode: selectedGameMode,
     );
@@ -83,7 +83,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       isJoiningRoom = true;
     });
 
-    final room = await FakeOnlineGameRepository.instance.joinRoom(
+    final room = await RepositoryRegistry.onlineGame.joinRoom(
       roomCode: roomCode,
       playerName: playerName,
     );

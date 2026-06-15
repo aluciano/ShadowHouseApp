@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "462298681309",
+    "project_id": "shadow-house",
+    "storage_bucket": "shadow-house.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462298681309:android:6ebb6e30db77c4a26c3034",
+        "android_client_info": {
+          "package_name": "com.aluciano.shadow_house"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDItvjzSBT2NoAnLE-ZJ1nkAm-h0McwgYc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

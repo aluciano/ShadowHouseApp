@@ -36,6 +36,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
           name: hostName,
           isHost: true,
           isReady: true,
+          lastSeenAt: now,
         ),
       ],
       gameMode: gameMode,
@@ -62,6 +63,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       name: playerName,
       isHost: false,
       isReady: true,
+      lastSeenAt: now,
     );
 
     final room = OnlineRoom(
@@ -70,11 +72,12 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       hostPlayerId: baseRoom?.hostPlayerId ?? 'player_host',
       players: [
         if (baseRoom == null)
-          const OnlinePlayer(
+          OnlinePlayer(
             id: 'player_host',
             name: 'Anfitrião',
             isHost: true,
             isReady: true,
+            lastSeenAt: now,
           )
         else
           ...baseRoom.players,
@@ -88,6 +91,39 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     _latestRoom = room;
 
     return room;
+  }
+
+  @override
+  Future<OnlineRoom> reconnectToRoom({
+    required String roomId,
+    required String playerId,
+  }) async {
+    final room = _latestRoom;
+
+    if (room == null || room.id != roomId) {
+      throw StateError('A sala anterior não está mais disponível.');
+    }
+
+    final updatedPlayers = room.players.map((player) {
+      if (player.id != playerId) {
+        return player;
+      }
+
+      return player.copyWith(
+        isConnected: true,
+        lastSeenAt: DateTime.now(),
+      );
+    }).toList();
+
+    final updatedRoom = room.copyWith(players: updatedPlayers);
+    _latestRoom = updatedRoom;
+
+    if (_latestSession != null) {
+      _latestSession = _latestSession!.copyWith(room: updatedRoom);
+      _sessionController.add(_latestSession!);
+    }
+
+    return updatedRoom;
   }
 
   @override
@@ -136,6 +172,71 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     if (room != null && room.id == roomId) {
       yield room;
     }
+  }
+
+  @override
+  Future<void> updatePlayerConnection({
+    required String roomId,
+    required String playerId,
+    required bool isConnected,
+  }) async {
+    final room = _latestRoom;
+
+    if (room == null || room.id != roomId) {
+      return;
+    }
+
+    final updatedPlayers = room.players.map((player) {
+      if (player.id != playerId) {
+        return player;
+      }
+
+      return player.copyWith(
+        isConnected: isConnected,
+        lastSeenAt: DateTime.now(),
+      );
+    }).toList();
+
+    _latestRoom = room.copyWith(players: updatedPlayers);
+
+    if (_latestSession != null) {
+      _latestSession = _latestSession!.copyWith(room: _latestRoom);
+      _sessionController.add(_latestSession!);
+    }
+  }
+
+  @override
+  Future<void> leaveRoom({
+    required String roomId,
+    required String playerId,
+  }) async {
+    final room = _latestRoom;
+
+    if (room == null || room.id != roomId) {
+      return;
+    }
+
+    final updatedPlayers =
+        room.players.where((player) => player.id != playerId).toList();
+
+    _latestRoom = room.copyWith(players: updatedPlayers);
+
+    if (_latestSession != null) {
+      _latestSession = _latestSession!.copyWith(room: _latestRoom);
+      _sessionController.add(_latestSession!);
+    }
+  }
+
+  @override
+  Future<void> removePlayer({
+    required String roomId,
+    required String actingPlayerId,
+    required String removedPlayerId,
+  }) async {
+    await leaveRoom(
+      roomId: roomId,
+      playerId: removedPlayerId,
+    );
   }
 
   OnlineGameSession _createSessionForRoom(OnlineRoom room) {

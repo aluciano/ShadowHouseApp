@@ -10,6 +10,7 @@ import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
 import '../models/online_pending_effect.dart';
 import '../models/player.dart';
+import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import 'online_round_result_screen.dart';
@@ -74,19 +75,112 @@ class OnlineGameScreen extends StatefulWidget {
   State<OnlineGameScreen> createState() => _OnlineGameScreenState();
 }
 
-class _OnlineGameScreenState extends State<OnlineGameScreen> {
+class _OnlineGameScreenState extends State<OnlineGameScreen>
+    with WidgetsBindingObserver {
+  final membershipStore = createLocalOnlineMembershipStore();
   bool isSavingMove = false;
   bool isResolvingEffect = false;
   bool isOpeningRoundResult = false;
   bool finishedMatchWasRecorded = false;
+  bool isLeavingRoom = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _pendingEffectCardKey = GlobalKey();
   String? _lastPendingEffectFocusToken;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    markConnected();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      markConnected();
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      markDisconnected();
+    }
+  }
+
+  Future<void> markConnected() async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: widget.session.room.id,
+      playerId: widget.currentPlayerId,
+      isConnected: true,
+    );
+  }
+
+  Future<void> markDisconnected() async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: widget.session.room.id,
+      playerId: widget.currentPlayerId,
+      isConnected: false,
+    );
+  }
+
+  Future<void> leaveRoom(OnlineGameSession session) async {
+    if (isLeavingRoom) {
+      return;
+    }
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Sair da sala'),
+          content: const Text(
+            'Você sairá desta partida online e deixará de participar imediatamente.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Sair'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLeave != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      isLeavingRoom = true;
+    });
+
+    await RepositoryRegistry.onlineGame.leaveRoom(
+      roomId: session.room.id,
+      playerId: widget.currentPlayerId,
+    );
+    await membershipStore.clear();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   Player currentDevicePlayer(GameState gameState) {
@@ -2337,6 +2431,16 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return cards.firstWhere((card) => card.id == cardId);
   }
 
+  dynamic _roomPlayerById(dynamic room, String playerId) {
+    for (final player in room.players) {
+      if (player.id == playerId) {
+        return player;
+      }
+    }
+
+    return null;
+  }
+
   List<String> _expectedViewerIds(OnlineGameSession session) {
     return session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
@@ -2412,14 +2516,27 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Sala ${widget.session.room.code}'),
-        backgroundColor: const Color(0xFF120818),
-      ),
-      body: ShadowBackground(
-        child: SafeArea(
-          child: StreamBuilder<OnlineGameSession>(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          leaveRoom(widget.session);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Sala ${widget.session.room.code}'),
+          backgroundColor: const Color(0xFF120818),
+          leading: IconButton(
+            onPressed: () {
+              leaveRoom(widget.session);
+            },
+            icon: const Icon(Icons.arrow_back),
+          ),
+        ),
+        body: ShadowBackground(
+          child: SafeArea(
+            child: StreamBuilder<OnlineGameSession>(
             stream: RepositoryRegistry.onlineGame.watchCurrentSession(
               widget.session.room,
             ),
@@ -2436,11 +2553,43 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
               }
 
               final session = snapshot.data ?? widget.session;
+              final roomPlayer = _roomPlayerById(
+                session.room,
+                widget.currentPlayerId,
+              );
+
+              if (roomPlayer == null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  membershipStore.clear();
+
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Você não faz mais parte desta partida.',
+                      ),
+                    ),
+                  );
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                });
+
+                return const SizedBox.shrink();
+              }
+
               final gameState = session.gameState;
               final currentPlayer = gameState.currentPlayer;
               final player = currentDevicePlayer(gameState);
               final isCurrentPlayer = player.id == currentPlayer.id;
               final hasPendingEffect = session.pendingEffect != null;
+              final disconnectedPlayers = session.room.players.where((roomPlayer) {
+                return !roomPlayer.isConnected &&
+                    !roomPlayer.id.startsWith('placeholder_player_');
+              }).toList();
+              final currentDeviceIsHost =
+                  roomPlayer.id == session.room.hostPlayerId;
 
               _schedulePendingEffectFocus(session.pendingEffect);
 
@@ -2482,6 +2631,71 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (disconnectedPlayers.isNotEmpty) ...[
+                    Card(
+                      color: const Color(0xFF221229),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.wifi_off,
+                                  color: Color(0xFFE7C76F),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Jogadores desconectados',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFE7C76F),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...disconnectedPlayers.map((disconnectedPlayer) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${disconnectedPlayer.name} está desconectado.',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
+                                    if (currentDeviceIsHost)
+                                      TextButton.icon(
+                                        onPressed: () async {
+                                          await RepositoryRegistry.onlineGame
+                                              .removePlayer(
+                                            roomId: session.room.id,
+                                            actingPlayerId: widget.currentPlayerId,
+                                            removedPlayerId:
+                                                disconnectedPlayer.id,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.person_remove),
+                                        label: const Text('Remover'),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (session.pendingEffect != null) ...[
                     KeyedSubtree(
                       key: _pendingEffectCardKey,
@@ -2763,6 +2977,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                 ],
               );
             },
+            ),
           ),
         ),
       ),

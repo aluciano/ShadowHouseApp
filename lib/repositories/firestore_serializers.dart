@@ -23,6 +23,8 @@ Map<String, Object?> onlinePlayerToFirestore(OnlinePlayer player) {
     'name': player.name,
     'isHost': player.isHost,
     'isReady': player.isReady,
+    'isConnected': player.isConnected,
+    'lastSeenAt': Timestamp.fromDate(player.lastSeenAt),
   };
 }
 
@@ -32,6 +34,8 @@ OnlinePlayer onlinePlayerFromFirestore(Map<String, dynamic> data) {
     name: data['name'] as String,
     isHost: data['isHost'] as bool? ?? false,
     isReady: data['isReady'] as bool? ?? false,
+    isConnected: data['isConnected'] as bool? ?? true,
+    lastSeenAt: _dateTimeFromFirestore(data['lastSeenAt']),
   );
 }
 
@@ -137,8 +141,16 @@ OnlineGameSession onlineGameSessionFromFirestore({
   required OnlineRoom room,
   required Map<String, dynamic> data,
 }) {
+  final embeddedRoomData = data['room'];
+  final effectiveRoom = embeddedRoomData is Map<String, dynamic>
+      ? onlineRoomFromFirestore(
+          id: room.id,
+          data: embeddedRoomData,
+        )
+      : room;
+
   return OnlineGameSession(
-    room: room,
+    room: effectiveRoom,
     gameState: gameStateFromFirestore(
       data['gameState'] as Map<String, dynamic>,
     ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/online_game_session.dart';
 import '../models/player.dart';
 import '../models/round_result_type.dart';
+import '../repositories/local_online_membership_store.dart';
 import '../repositories/online_game_session_factory.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
@@ -27,11 +28,107 @@ class OnlineRoundResultScreen extends StatefulWidget {
 }
 
 class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
+  final membershipStore = createLocalOnlineMembershipStore();
   bool isStartingNextRound = false;
   bool isStartingRematch = false;
   bool isOpeningStartedRound = false;
+  bool isLeavingRoom = false;
 
   OnlineGameSession get session => widget.session;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
+    markConnected();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
+    super.dispose();
+  }
+
+  late final WidgetsBindingObserver _lifecycleObserver =
+      _RoundResultLifecycleObserver(
+        onStateChanged: (state) {
+          if (state == AppLifecycleState.resumed) {
+            markConnected();
+          } else if (state == AppLifecycleState.inactive ||
+              state == AppLifecycleState.paused ||
+              state == AppLifecycleState.detached) {
+            markDisconnected();
+          }
+        },
+      );
+
+  Future<void> markConnected() async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: widget.session.room.id,
+      playerId: widget.currentPlayerId,
+      isConnected: true,
+    );
+  }
+
+  Future<void> markDisconnected() async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: widget.session.room.id,
+      playerId: widget.currentPlayerId,
+      isConnected: false,
+    );
+  }
+
+  Future<void> leaveRoom(OnlineGameSession session) async {
+    if (isLeavingRoom) {
+      return;
+    }
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Sair da sala'),
+          content: const Text(
+            'Você sairá desta sala online e deixará de participar da continuação.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Sair'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLeave != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      isLeavingRoom = true;
+    });
+
+    await RepositoryRegistry.onlineGame.leaveRoom(
+      roomId: session.room.id,
+      playerId: widget.currentPlayerId,
+    );
+    await membershipStore.clear();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 
   Future<void> confirmReadyForNextRound(
     OnlineGameSession session,
@@ -182,16 +279,46 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
         .where(session.nextRoundReadyPlayerIds.contains)
         .length;
 
-    return Scaffold(
-      body: ShadowBackground(
-        child: ShadowScrollableContent(
-          child: Card(
-            color: const Color(0xFF221229),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+    final currentRoomPlayer = session.room.players.where(
+      (player) => player.id == widget.currentPlayerId,
+    );
+
+    if (currentRoomPlayer.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        membershipStore.clear();
+
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Você não faz mais parte desta sala.'),
+            ),
+          );
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      });
+
+      return const SizedBox.shrink();
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          leaveRoom(session);
+        }
+      },
+      child: Scaffold(
+        body: ShadowBackground(
+          child: ShadowScrollableContent(
+            child: Card(
+              color: const Color(0xFF221229),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   const Icon(
                     Icons.emoji_events,
                     size: 72,
@@ -381,9 +508,7 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.of(context).popUntil(
-                          (route) => route.isFirst,
-                        );
+                        leaveRoom(session);
                       },
                       icon: const Icon(Icons.home),
                       label: const Padding(
@@ -395,7 +520,8 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -430,6 +556,19 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
         .reduce((a, b) => a > b ? a : b);
 
     return highestScore >= 5;
+  }
+}
+
+class _RoundResultLifecycleObserver extends WidgetsBindingObserver {
+  _RoundResultLifecycleObserver({
+    required this.onStateChanged,
+  });
+
+  final ValueChanged<AppLifecycleState> onStateChanged;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    onStateChanged(state);
   }
 }
 

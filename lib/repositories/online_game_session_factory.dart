@@ -75,6 +75,7 @@ List<OnlinePlayer> playersWithMinimumCount(List<OnlinePlayer> players) {
         name: 'Convidado ${i + 1}',
         isHost: false,
         isReady: true,
+        lastSeenAt: DateTime.now(),
       ),
   ];
 }

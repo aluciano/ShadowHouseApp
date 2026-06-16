@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/game_mode.dart';
+import '../models/saved_online_room_membership.dart';
 import '../models/online_room.dart';
+import '../models/online_room_status.dart';
+import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/game_mode_option_card.dart';
 import '../widgets/shadow_background.dart';
+import 'online_game_screen.dart';
 import 'online_lobby_screen.dart';
 
 class OnlineEntryScreen extends StatefulWidget {
@@ -16,6 +20,7 @@ class OnlineEntryScreen extends StatefulWidget {
 }
 
 class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
+  final membershipStore = createLocalOnlineMembershipStore();
   final playerNameController = TextEditingController(text: 'Jogador');
   final roomCodeController = TextEditingController();
 
@@ -23,6 +28,13 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   bool isCreatingTab = true;
   bool isCreatingRoom = false;
   bool isJoiningRoom = false;
+  bool isResumingRoom = true;
+
+  @override
+  void initState() {
+    super.initState();
+    resumeSavedRoomIfPossible();
+  }
 
   @override
   void dispose() {
@@ -30,6 +42,72 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
     roomCodeController.dispose();
 
     super.dispose();
+  }
+
+  Future<void> resumeSavedRoomIfPossible() async {
+    final membership = await membershipStore.load();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (membership == null) {
+      setState(() {
+        isResumingRoom = false;
+      });
+      return;
+    }
+
+    try {
+      final room = await RepositoryRegistry.onlineGame.reconnectToRoom(
+        roomId: membership.roomId,
+        playerId: membership.playerId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (room.status == OnlineRoomStatus.inProgress) {
+        final session = await RepositoryRegistry.onlineGame.loadCurrentSession(
+          room,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => OnlineGameScreen(
+              session: session,
+              currentPlayerId: membership.playerId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => OnlineLobbyScreen(
+            room: room,
+            currentPlayerId: membership.playerId,
+          ),
+        ),
+      );
+      return;
+    } catch (_) {
+      await membershipStore.clear();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      isResumingRoom = false;
+    });
   }
 
   Future<void> createRoom() async {
@@ -62,6 +140,18 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       showMessage(error.toString());
       return;
     }
+
+    if (!mounted) {
+      return;
+    }
+
+    await membershipStore.save(
+      SavedOnlineRoomMembership(
+        roomId: room.id,
+        roomCode: room.code,
+        playerId: room.hostPlayerId,
+      ),
+    );
 
     if (!mounted) {
       return;
@@ -126,7 +216,22 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       isJoiningRoom = false;
     });
 
-    final currentPlayer = room.players.last;
+    final currentPlayer = room.players.firstWhere(
+      (player) => player.name.trim().toLowerCase() == playerName.toLowerCase(),
+      orElse: () => room.players.last,
+    );
+
+    await membershipStore.save(
+      SavedOnlineRoomMembership(
+        roomId: room.id,
+        roomCode: room.code,
+        playerId: currentPlayer.id,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -155,6 +260,30 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
         child: SafeArea(
           child: ListView(
             children: [
+              if (isResumingRoom) ...[
+                const Card(
+                  color: Color(0xFF221229),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Tentando retomar sua última sala online...',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               const Text(
                 'Partida Online',
                 style: TextStyle(

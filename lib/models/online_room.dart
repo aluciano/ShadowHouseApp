@@ -22,4 +22,29 @@ class OnlineRoom {
   final DateTime createdAt;
   final OnlineRoomStatus status;
   final String? currentPlayerId;
+
+  OnlineRoom copyWith({
+    String? id,
+    String? code,
+    String? hostPlayerId,
+    List<OnlinePlayer>? players,
+    GameMode? gameMode,
+    DateTime? createdAt,
+    OnlineRoomStatus? status,
+    String? currentPlayerId,
+    bool clearCurrentPlayerId = false,
+  }) {
+    return OnlineRoom(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      hostPlayerId: hostPlayerId ?? this.hostPlayerId,
+      players: players ?? this.players,
+      gameMode: gameMode ?? this.gameMode,
+      createdAt: createdAt ?? this.createdAt,
+      status: status ?? this.status,
+      currentPlayerId: clearCurrentPlayerId
+          ? null
+          : currentPlayerId ?? this.currentPlayerId,
+    );
+  }
 }

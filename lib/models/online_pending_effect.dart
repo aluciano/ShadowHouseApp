@@ -12,6 +12,9 @@ enum OnlineEffectType {
   share,
   rumors,
   frenzy,
+  butler,
+  portrait,
+  spy,
 }
 
 class OnlinePendingEffect {

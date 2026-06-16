@@ -160,6 +160,24 @@ void playCard({
     return;
   }
 
+  final butlerWasPlayed = card.templateId == 'mordomo';
+
+  if (butlerWasPlayed) {
+    return;
+  }
+
+  final portraitWasPlayed = card.templateId == 'retrato_na_parede';
+
+  if (portraitWasPlayed) {
+    return;
+  }
+
+  final spyWasPlayed = card.templateId == 'espiao';
+
+  if (spyWasPlayed) {
+    return;
+  }
+
   final witnessWasPlayed = card.templateId == 'testemunha';
 
   if (witnessWasPlayed) {

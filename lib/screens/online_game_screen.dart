@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 
 import '../engine/game_engine.dart';
+import 'dart:math';
+
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/match_history_entry.dart';
@@ -48,6 +50,14 @@ Player _playerToRightInGameState({
       (currentIndex - 1 + gameState.players.length) % gameState.players.length;
 
   return gameState.players[rightIndex];
+}
+
+Set<String> _playedTemplateIds(GameState gameState) {
+  return gameState.players
+      .expand((player) => player.playedCards)
+      .where((card) => !card.wasDiscarded)
+      .map((card) => card.templateId)
+      .toSet();
 }
 
 class OnlineGameScreen extends StatefulWidget {
@@ -152,6 +162,23 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
 
     return null;
+  }
+
+  int _butlerMatchingCardCount({
+    required GameState gameState,
+    required Player targetPlayer,
+  }) {
+    final playedTemplateIds = _playedTemplateIds(gameState);
+
+    return targetPlayer.hand.where((card) {
+      return playedTemplateIds.contains(card.templateId);
+    }).length;
+  }
+
+  GameCard _randomCardFromHand(List<GameCard> cards) {
+    final random = Random();
+
+    return cards[random.nextInt(cards.length)];
   }
 
   List<String> _shareParticipantPlayerIds(GameState gameState) {
@@ -451,6 +478,30 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     if (card.templateId == 'frenesi') {
       return OnlinePendingEffect(
         type: OnlineEffectType.frenzy,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'mordomo') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.butler,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'retrato_na_parede') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.portrait,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'espiao') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.spy,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -1403,31 +1454,44 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         return;
       }
 
-      final previewCards = previewFrenzyCards(
-        cards: effect.participantPlayerIds.map((playerId) {
-          final player = _playerById(session.gameState, playerId);
-          final selectedCardId = selectedCardIdsByPlayerId[playerId];
+      final selectedCardsByPlayerId = <String, GameCard>{};
 
-          if (selectedCardId == null) {
-            throw StateError('Carta do Frenesi não encontrada para $playerId.');
-          }
+      for (final playerId in effect.participantPlayerIds) {
+        final player = _playerById(session.gameState, playerId);
+        final selectedCardId = selectedCardIdsByPlayerId[playerId];
 
-          return _cardById(player.hand, selectedCardId);
-        }),
+        if (selectedCardId == null) {
+          continue;
+        }
+
+        selectedCardsByPlayerId[playerId] = _cardById(
+          player.hand,
+          selectedCardId,
+        );
+      }
+
+      final summary = resolveCircularCardPassEffect(
+        gameState: session.gameState,
+        selectedCardByPlayerId: selectedCardsByPlayerId,
+        passToLeft: true,
       );
 
       await _saveCurrentSession(
         session.copyWith(
+          gameState: session.gameState,
           pendingEffect: effect.copyWith(
             completedPlayerIds: completedPlayerIds,
             selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
             selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
-            previewCardNames: previewCards.map((card) => card.name).toList(),
+            receivedCardCountByPlayerId: summary,
+            resultMessage:
+                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
+            acknowledgedPlayerIds: const [],
           ),
         ),
       );
     } catch (error) {
-      showMessage('Não foi possível concluir Frenesi!!!: $error');
+      showMessage('Não foi possível concluir Compartilhar: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -1797,6 +1861,268 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
   }
 
+  Future<void> resolveButlerTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final count = _butlerMatchingCardCount(
+        gameState: session.gameState,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage:
+                '${target.name} tem $count carta${count == 1 ? '' : 's'} na mão com o mesmo nome de cartas já jogadas.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver Mordomo: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipButlerWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar Mordomo: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolvePortraitTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    if (target.hand.isEmpty) {
+      showMessage('${target.name} não tem cartas na mão.');
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final revealedCard = _randomCardFromHand(target.hand);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            revealedCardId: revealedCard.id,
+            revealedCardName: revealedCard.name,
+            revealedCardTemplateId: revealedCard.templateId,
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver Retrato na Parede: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finishPortraitEffect(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir Retrato na Parede: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectSpyFirstTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    if (target.hand.isEmpty) {
+      showMessage('${target.name} não tem cartas na mão.');
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final revealedCard = _randomCardFromHand(target.hand);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            revealedCardId: revealedCard.id,
+            revealedCardName: revealedCard.name,
+            revealedCardTemplateId: revealedCard.templateId,
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver o primeiro alvo do Espião: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectSpySecondTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    if (target.hand.isEmpty) {
+      showMessage('${target.name} não tem cartas na mão.');
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final revealedCard = _randomCardFromHand(target.hand);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            secondaryCardId: target.id,
+            secondaryCardName: revealedCard.name,
+            secondaryCardTemplateId: revealedCard.templateId,
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver o segundo alvo do Espião: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finishSpyEffect(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir Espião: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   String _forcedDiscardResultMessage({
     required GameState gameState,
     required Player targetPlayer,
@@ -1896,7 +2222,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     });
 
     try {
-      if (everyoneAcknowledged && effect.type == OnlineEffectType.publicNotice) {
+      if (everyoneAcknowledged &&
+          (effect.type == OnlineEffectType.publicNotice ||
+              effect.type == OnlineEffectType.butler)) {
         session.gameState.moveToNextPlayer();
       }
 
@@ -2237,6 +2565,39 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onFrenzyFinalize: () {
                         finalizeFrenzyShuffle(session);
                       },
+                      onButlerTargetSelected: (target) {
+                        resolveButlerTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onButlerWithoutTarget: () {
+                        skipButlerWithoutTarget(session);
+                      },
+                      onPortraitTargetSelected: (target) {
+                        resolvePortraitTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onPortraitContinue: () {
+                        finishPortraitEffect(session);
+                      },
+                      onSpyFirstTargetSelected: (target) {
+                        selectSpyFirstTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onSpySecondTargetSelected: (target) {
+                        selectSpySecondTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onSpyContinue: () {
+                        finishSpyEffect(session);
+                      },
                       onPublicNoticeSubmitted: (message) {
                         submitPublicNoticeMessage(
                           session: session,
@@ -2371,6 +2732,13 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onFrenzyCardSelected,
     required this.onFrenzyWithoutParticipants,
     required this.onFrenzyFinalize,
+    required this.onButlerTargetSelected,
+    required this.onButlerWithoutTarget,
+    required this.onPortraitTargetSelected,
+    required this.onPortraitContinue,
+    required this.onSpyFirstTargetSelected,
+    required this.onSpySecondTargetSelected,
+    required this.onSpyContinue,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -2411,6 +2779,13 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final ValueChanged<GameCard> onFrenzyCardSelected;
   final VoidCallback onFrenzyWithoutParticipants;
   final VoidCallback onFrenzyFinalize;
+  final ValueChanged<Player> onButlerTargetSelected;
+  final VoidCallback onButlerWithoutTarget;
+  final ValueChanged<Player> onPortraitTargetSelected;
+  final VoidCallback onPortraitContinue;
+  final ValueChanged<Player> onSpyFirstTargetSelected;
+  final ValueChanged<Player> onSpySecondTargetSelected;
+  final VoidCallback onSpyContinue;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -2569,6 +2944,32 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onWithoutParticipants: onFrenzyWithoutParticipants,
           onFinalize: onFrenzyFinalize,
           onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.butler:
+        return _ButlerPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onButlerTargetSelected,
+          onWithoutTarget: onButlerWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.portrait:
+        return _PortraitPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onPortraitTargetSelected,
+          onContinue: onPortraitContinue,
+        );
+      case OnlineEffectType.spy:
+        return _SpyPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onFirstTargetSelected: onSpyFirstTargetSelected,
+          onSecondTargetSelected: onSpySecondTargetSelected,
+          onContinue: onSpyContinue,
         );
     }
   }
@@ -2772,6 +3173,502 @@ class _ProtectionCancelTargetStep extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+class _ButlerPendingEffectCard extends StatelessWidget {
+  const _ButlerPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final effectWasResolved = effect.resultMessage != null;
+    final targetOptions = session.gameState.players
+        .where((player) => player.hand.isNotEmpty)
+        .toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.badge, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Mordomo',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Carta jogada: ${effect.cardName}',
+              style: const TextStyle(
+                color: Color(0xFFE7C76F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (!effectWasResolved)
+              if (targetOptions.isEmpty) ...[
+                const Text(
+                  'Nenhum jogador tem cartas na mão para o efeito do Mordomo.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                if (currentDeviceIsActingPlayer) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: isResolvingEffect ? null : onWithoutTarget,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Continuar'),
+                    ),
+                  ),
+                ],
+              ] else if (!currentDeviceIsActingPlayer)
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher o jogador consultado pelo Mordomo.',
+                  style: const TextStyle(color: Colors.white60),
+                )
+              else ...[
+                Text(
+                  '${actingPlayer.name}, escolha quem será consultado pelo Mordomo.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...targetOptions.map((player) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(player);
+                            },
+                      icon: const Icon(Icons.person_search),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(player.name),
+                      ),
+                    ),
+                  );
+                }),
+              ]
+            else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PortraitPendingEffectCard extends StatelessWidget {
+  const _PortraitPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onContinue,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final targetWasChosen = effect.targetPlayerId != null;
+    final targetOptions = session.gameState.players
+        .where((player) => player.id != actingPlayer.id && player.hand.isNotEmpty)
+        .toList();
+    final targetPlayer = targetWasChosen
+        ? session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          )
+        : null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.photo, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Retrato na Parede',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!targetWasChosen)
+              if (targetOptions.isEmpty) ...[
+                const Text(
+                  'Nenhum jogador tem cartas na mão para o Retrato na Parede.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                if (currentDeviceIsActingPlayer) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: isResolvingEffect ? null : onContinue,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Continuar'),
+                    ),
+                  ),
+                ],
+              ] else if (!currentDeviceIsActingPlayer)
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher uma mão para observar em segredo.',
+                  style: const TextStyle(color: Colors.white60),
+                )
+              else ...[
+                Text(
+                  '${actingPlayer.name}, escolha um jogador para revelar uma carta aleatória em segredo.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...targetOptions.map((player) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(player);
+                            },
+                      icon: const Icon(Icons.visibility),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(player.name),
+                      ),
+                    ),
+                  );
+                }),
+              ]
+            else if (currentDeviceIsActingPlayer) ...[
+              Text(
+                'Você observou uma carta da mão de ${targetPlayer!.name}.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                color: const Color(0xFF120818),
+                child: ListTile(
+                  leading: const Icon(
+                    Icons.visibility,
+                    color: Color(0xFFE7C76F),
+                  ),
+                  title: Text(
+                    effect.revealedCardName ?? 'Carta não identificada',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('Mão de ${targetPlayer.name}'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onContinue,
+                icon: const Icon(Icons.arrow_forward),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Continuar'),
+                ),
+              ),
+            ] else
+              Text(
+                '${actingPlayer.name} está observando uma carta em segredo.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpyPendingEffectCard extends StatelessWidget {
+  const _SpyPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onFirstTargetSelected,
+    required this.onSecondTargetSelected,
+    required this.onContinue,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onFirstTargetSelected;
+  final ValueChanged<Player> onSecondTargetSelected;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final firstTargetWasChosen = effect.targetPlayerId != null;
+    final secondTargetWasChosen = effect.secondaryCardName != null;
+    final targetOptions = session.gameState.players
+        .where((player) => player.id != actingPlayer.id && player.hand.isNotEmpty)
+        .toList();
+    final secondTargetOptions = targetOptions.where((player) {
+      return player.id != effect.targetPlayerId;
+    }).toList();
+    final firstTarget = firstTargetWasChosen
+        ? session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          )
+        : null;
+    final secondTarget = effect.secondaryCardId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.secondaryCardId,
+          );
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.travel_explore, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Espião',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!firstTargetWasChosen)
+              if (targetOptions.isEmpty) ...[
+                const Text(
+                  'Nenhum jogador tem cartas na mão para o Espião.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                if (currentDeviceIsActingPlayer) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: isResolvingEffect ? null : onContinue,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Continuar'),
+                    ),
+                  ),
+                ],
+              ] else if (!currentDeviceIsActingPlayer)
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher o primeiro alvo do Espião.',
+                  style: const TextStyle(color: Colors.white60),
+                )
+              else ...[
+                Text(
+                  '${actingPlayer.name}, escolha o primeiro jogador para observar em segredo.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...targetOptions.map((player) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onFirstTargetSelected(player);
+                            },
+                      icon: const Icon(Icons.visibility),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(player.name),
+                      ),
+                    ),
+                  );
+                }),
+              ]
+            else if (currentDeviceIsActingPlayer) ...[
+              if (firstTarget != null)
+                Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.visibility,
+                      color: Color(0xFFE7C76F),
+                    ),
+                    title: Text(
+                      effect.revealedCardName ?? 'Carta não identificada',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('Primeiro alvo: ${firstTarget.name}'),
+                  ),
+                ),
+              if (secondTargetWasChosen && secondTarget != null) ...[
+                const SizedBox(height: 8),
+                Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.visibility,
+                      color: Color(0xFFE7C76F),
+                    ),
+                    title: Text(
+                      effect.secondaryCardName ?? 'Carta não identificada',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('Segundo alvo: ${secondTarget.name}'),
+                  ),
+                ),
+              ],
+              if (!secondTargetWasChosen && secondTargetOptions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Você pode observar um segundo jogador ou seguir adiante.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...secondTargetOptions.map((player) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onSecondTargetSelected(player);
+                            },
+                      icon: const Icon(Icons.visibility),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text('Observar ${player.name}'),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onContinue,
+                icon: const Icon(Icons.arrow_forward),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    secondTargetWasChosen
+                        ? 'Continuar'
+                        : 'Continuar sem segundo alvo',
+                  ),
+                ),
+              ),
+            ] else
+              Text(
+                '${actingPlayer.name} está observando cartas em segredo.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

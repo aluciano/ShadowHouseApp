@@ -79,6 +79,15 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
   bool isResolvingEffect = false;
   bool isOpeningRoundResult = false;
   bool finishedMatchWasRecorded = false;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _pendingEffectCardKey = GlobalKey();
+  String? _lastPendingEffectFocusToken;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Player currentDevicePlayer(GameState gameState) {
     return gameState.players.firstWhere(
@@ -2341,6 +2350,66 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     );
   }
 
+  String? _pendingEffectFocusToken(OnlinePendingEffect? effect) {
+    if (effect == null) {
+      return null;
+    }
+
+    return [
+      effect.type.name,
+      effect.actingPlayerId,
+      effect.targetPlayerId ?? '',
+      effect.revealedCardId ?? '',
+      effect.secondaryCardId ?? '',
+      effect.secondaryCardName ?? '',
+      effect.resultMessage ?? '',
+      effect.completedPlayerIds.length.toString(),
+      effect.acknowledgedPlayerIds.length.toString(),
+      effect.previewCardNames.length.toString(),
+    ].join('|');
+  }
+
+  void _schedulePendingEffectFocus(OnlinePendingEffect? effect) {
+    final focusToken = _pendingEffectFocusToken(effect);
+
+    if (focusToken == null) {
+      _lastPendingEffectFocusToken = null;
+      return;
+    }
+
+    if (_lastPendingEffectFocusToken == focusToken) {
+      return;
+    }
+
+    _lastPendingEffectFocusToken = focusToken;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+
+      final context = _pendingEffectCardKey.currentContext;
+
+      if (context != null) {
+        await Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        );
+        return;
+      }
+
+      if (_scrollController.hasClients) {
+        await _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2373,6 +2442,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
               final isCurrentPlayer = player.id == currentPlayer.id;
               final hasPendingEffect = session.pendingEffect != null;
 
+              _schedulePendingEffectFocus(session.pendingEffect);
+
               if (gameState.roundFinished && !hasPendingEffect) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
@@ -2382,6 +2453,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
               }
 
               return ListView(
+                controller: _scrollController,
                 children: [
                   const Text(
                     'Partida Online',
@@ -2411,209 +2483,212 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                   ),
                   const SizedBox(height: 24),
                   if (session.pendingEffect != null) ...[
-                    _OnlinePendingEffectCard(
-                      session: session,
-                      currentPlayerId: widget.currentPlayerId,
-                      isResolvingEffect: isResolvingEffect,
-                      onDetectiveTargetSelected: (target) {
-                        resolveDetectiveTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onTotoTargetSelected: (target) {
-                        selectTotoTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onTotoCardSelected: (card) {
-                        resolveTotoCard(
-                          session: session,
-                          revealedCard: card,
-                        );
-                      },
-                      onTotoWithoutTarget: () {
-                        skipTotoWithoutTarget(session);
-                      },
-                      onHandcuffsTargetSelected: (target) {
-                        resolveHandcuffsTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onHandcuffsWithoutTarget: () {
-                        skipHandcuffsWithoutTarget(session);
-                      },
-                      onAccompliceTargetSelected: (target) {
-                        selectForcedDiscardTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onAccompliceCardSelected: (card) {
-                        resolveForcedDiscardCard(
-                          session: session,
-                          cardToDiscard: card,
-                        );
-                      },
-                      onAccompliceWithoutTarget: () {
-                        skipForcedDiscardWithoutTarget(session);
-                      },
-                      onPoisonedCupTargetSelected: (target) {
-                        selectForcedDiscardTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onPoisonedCupCardSelected: (card) {
-                        resolveForcedDiscardCard(
-                          session: session,
-                          cardToDiscard: card,
-                        );
-                      },
-                      onPoisonedCupWithoutTarget: () {
-                        skipForcedDiscardWithoutTarget(session);
-                      },
-                      onWitnessTargetSelected: (target) {
-                        selectWitnessTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onWitnessContinueWithoutExchange: () {
-                        finishWitnessWithoutExchange(session);
-                      },
-                      onWitnessCardSelected: (card) {
-                        selectWitnessCardForExchange(
-                          session: session,
-                          witnessCard: card,
-                        );
-                      },
-                      onWitnessExchangeCardSelected: (card) {
-                        resolveWitnessExchangeCard(
-                          session: session,
-                          targetCard: card,
-                        );
-                      },
-                      onWitnessWithoutTarget: () {
-                        skipWitnessWithoutTarget(session);
-                      },
-                      onFamilyBabyReveal: () {
-                        revealFamilyBaby(session);
-                      },
-                      onFamilyBabyContinue: () {
-                        finishFamilyBaby(session);
-                      },
-                      onProtectionCancelSelected: (protection) {
-                        resolveProtectionCancelTarget(
-                          session: session,
-                          protection: protection,
-                        );
-                      },
-                      onProtectionCancelWithoutTarget: () {
-                        skipProtectionCancelWithoutTarget(session);
-                      },
-                      onSwapTargetSelected: (target) {
-                        selectSwapTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onSwapActingCardSelected: (card) {
-                        selectSwapActingCard(
-                          session: session,
-                          card: card,
-                        );
-                      },
-                      onSwapTargetCardSelected: (card) {
-                        resolveSwapTargetCard(
-                          session: session,
-                          card: card,
-                        );
-                      },
-                      onSwapWithoutTarget: () {
-                        skipSwapWithoutTarget(session);
-                      },
-                      onShareCardSelected: (card) {
-                        selectShareCard(
-                          session: session,
-                          card: card,
-                        );
-                      },
-                      onShareWithoutParticipants: () {
-                        skipShareWithoutParticipants(session);
-                      },
-                      onRumorsCardSelected: (card) {
-                        selectRumorsCard(
-                          session: session,
-                          card: card,
-                        );
-                      },
-                      onRumorsWithoutCards: () {
-                        skipRumorsWithoutCards(session);
-                      },
-                      onFrenzyCardSelected: (card) {
-                        selectFrenzyCard(
-                          session: session,
-                          card: card,
-                        );
-                      },
-                      onFrenzyWithoutParticipants: () {
-                        skipFrenzyWithoutParticipants(session);
-                      },
-                      onFrenzyFinalize: () {
-                        finalizeFrenzyShuffle(session);
-                      },
-                      onButlerTargetSelected: (target) {
-                        resolveButlerTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onButlerWithoutTarget: () {
-                        skipButlerWithoutTarget(session);
-                      },
-                      onPortraitTargetSelected: (target) {
-                        resolvePortraitTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onPortraitContinue: () {
-                        finishPortraitEffect(session);
-                      },
-                      onSpyFirstTargetSelected: (target) {
-                        selectSpyFirstTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onSpySecondTargetSelected: (target) {
-                        selectSpySecondTarget(
-                          session: session,
-                          target: target,
-                        );
-                      },
-                      onSpyContinue: () {
-                        finishSpyEffect(session);
-                      },
-                      onPublicNoticeSubmitted: (message) {
-                        submitPublicNoticeMessage(
-                          session: session,
-                          message: message,
-                        );
-                      },
-                      onPublicNoticeSkipped: () {
-                        submitPublicNoticeMessage(
-                          session: session,
-                          message: '',
-                          allowEmptyMessage: true,
-                        );
-                      },
-                      onAcknowledge: () {
-                        acknowledgePendingEffect(session);
-                      },
+                    KeyedSubtree(
+                      key: _pendingEffectCardKey,
+                      child: _OnlinePendingEffectCard(
+                        session: session,
+                        currentPlayerId: widget.currentPlayerId,
+                        isResolvingEffect: isResolvingEffect,
+                        onDetectiveTargetSelected: (target) {
+                          resolveDetectiveTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onTotoTargetSelected: (target) {
+                          selectTotoTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onTotoCardSelected: (card) {
+                          resolveTotoCard(
+                            session: session,
+                            revealedCard: card,
+                          );
+                        },
+                        onTotoWithoutTarget: () {
+                          skipTotoWithoutTarget(session);
+                        },
+                        onHandcuffsTargetSelected: (target) {
+                          resolveHandcuffsTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onHandcuffsWithoutTarget: () {
+                          skipHandcuffsWithoutTarget(session);
+                        },
+                        onAccompliceTargetSelected: (target) {
+                          selectForcedDiscardTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onAccompliceCardSelected: (card) {
+                          resolveForcedDiscardCard(
+                            session: session,
+                            cardToDiscard: card,
+                          );
+                        },
+                        onAccompliceWithoutTarget: () {
+                          skipForcedDiscardWithoutTarget(session);
+                        },
+                        onPoisonedCupTargetSelected: (target) {
+                          selectForcedDiscardTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onPoisonedCupCardSelected: (card) {
+                          resolveForcedDiscardCard(
+                            session: session,
+                            cardToDiscard: card,
+                          );
+                        },
+                        onPoisonedCupWithoutTarget: () {
+                          skipForcedDiscardWithoutTarget(session);
+                        },
+                        onWitnessTargetSelected: (target) {
+                          selectWitnessTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onWitnessContinueWithoutExchange: () {
+                          finishWitnessWithoutExchange(session);
+                        },
+                        onWitnessCardSelected: (card) {
+                          selectWitnessCardForExchange(
+                            session: session,
+                            witnessCard: card,
+                          );
+                        },
+                        onWitnessExchangeCardSelected: (card) {
+                          resolveWitnessExchangeCard(
+                            session: session,
+                            targetCard: card,
+                          );
+                        },
+                        onWitnessWithoutTarget: () {
+                          skipWitnessWithoutTarget(session);
+                        },
+                        onFamilyBabyReveal: () {
+                          revealFamilyBaby(session);
+                        },
+                        onFamilyBabyContinue: () {
+                          finishFamilyBaby(session);
+                        },
+                        onProtectionCancelSelected: (protection) {
+                          resolveProtectionCancelTarget(
+                            session: session,
+                            protection: protection,
+                          );
+                        },
+                        onProtectionCancelWithoutTarget: () {
+                          skipProtectionCancelWithoutTarget(session);
+                        },
+                        onSwapTargetSelected: (target) {
+                          selectSwapTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onSwapActingCardSelected: (card) {
+                          selectSwapActingCard(
+                            session: session,
+                            card: card,
+                          );
+                        },
+                        onSwapTargetCardSelected: (card) {
+                          resolveSwapTargetCard(
+                            session: session,
+                            card: card,
+                          );
+                        },
+                        onSwapWithoutTarget: () {
+                          skipSwapWithoutTarget(session);
+                        },
+                        onShareCardSelected: (card) {
+                          selectShareCard(
+                            session: session,
+                            card: card,
+                          );
+                        },
+                        onShareWithoutParticipants: () {
+                          skipShareWithoutParticipants(session);
+                        },
+                        onRumorsCardSelected: (card) {
+                          selectRumorsCard(
+                            session: session,
+                            card: card,
+                          );
+                        },
+                        onRumorsWithoutCards: () {
+                          skipRumorsWithoutCards(session);
+                        },
+                        onFrenzyCardSelected: (card) {
+                          selectFrenzyCard(
+                            session: session,
+                            card: card,
+                          );
+                        },
+                        onFrenzyWithoutParticipants: () {
+                          skipFrenzyWithoutParticipants(session);
+                        },
+                        onFrenzyFinalize: () {
+                          finalizeFrenzyShuffle(session);
+                        },
+                        onButlerTargetSelected: (target) {
+                          resolveButlerTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onButlerWithoutTarget: () {
+                          skipButlerWithoutTarget(session);
+                        },
+                        onPortraitTargetSelected: (target) {
+                          resolvePortraitTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onPortraitContinue: () {
+                          finishPortraitEffect(session);
+                        },
+                        onSpyFirstTargetSelected: (target) {
+                          selectSpyFirstTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onSpySecondTargetSelected: (target) {
+                          selectSpySecondTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onSpyContinue: () {
+                          finishSpyEffect(session);
+                        },
+                        onPublicNoticeSubmitted: (message) {
+                          submitPublicNoticeMessage(
+                            session: session,
+                            message: message,
+                          );
+                        },
+                        onPublicNoticeSkipped: () {
+                          submitPublicNoticeMessage(
+                            session: session,
+                            message: '',
+                            allowEmptyMessage: true,
+                          );
+                        },
+                        onAcknowledge: () {
+                          acknowledgePendingEffect(session);
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
                   ],

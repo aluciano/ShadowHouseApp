@@ -12,6 +12,8 @@ class OnlineRoom {
     required this.createdAt,
     required this.status,
     this.currentPlayerId,
+    this.systemMessage,
+    this.systemMessageAt,
   });
 
   final String id;
@@ -22,6 +24,8 @@ class OnlineRoom {
   final DateTime createdAt;
   final OnlineRoomStatus status;
   final String? currentPlayerId;
+  final String? systemMessage;
+  final DateTime? systemMessageAt;
 
   OnlineRoom copyWith({
     String? id,
@@ -32,7 +36,10 @@ class OnlineRoom {
     DateTime? createdAt,
     OnlineRoomStatus? status,
     String? currentPlayerId,
+    String? systemMessage,
+    DateTime? systemMessageAt,
     bool clearCurrentPlayerId = false,
+    bool clearSystemMessage = false,
   }) {
     return OnlineRoom(
       id: id ?? this.id,
@@ -45,6 +52,12 @@ class OnlineRoom {
       currentPlayerId: clearCurrentPlayerId
           ? null
           : currentPlayerId ?? this.currentPlayerId,
+      systemMessage: clearSystemMessage
+          ? null
+          : systemMessage ?? this.systemMessage,
+      systemMessageAt: clearSystemMessage
+          ? null
+          : systemMessageAt ?? this.systemMessageAt,
     );
   }
 }

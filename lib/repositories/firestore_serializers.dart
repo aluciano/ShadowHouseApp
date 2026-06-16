@@ -48,6 +48,10 @@ Map<String, Object?> onlineRoomToFirestore(OnlineRoom room) {
     'createdAt': Timestamp.fromDate(room.createdAt),
     'status': room.status.name,
     'currentPlayerId': room.currentPlayerId,
+    'systemMessage': room.systemMessage,
+    'systemMessageAt': room.systemMessageAt == null
+        ? null
+        : Timestamp.fromDate(room.systemMessageAt!),
   };
 }
 
@@ -77,6 +81,10 @@ OnlineRoom onlineRoomFromFirestore({
       OnlineRoomStatus.waiting,
     ),
     currentPlayerId: data['currentPlayerId'] as String?,
+    systemMessage: data['systemMessage'] as String?,
+    systemMessageAt: data['systemMessageAt'] == null
+        ? null
+        : _dateTimeFromFirestore(data['systemMessageAt']),
   );
 }
 

@@ -37,6 +37,8 @@ OnlineGameSession createOnlineGameSessionForRoom(OnlineRoom room) {
     createdAt: room.createdAt,
     status: OnlineRoomStatus.inProgress,
     currentPlayerId: gameState.currentPlayer.id,
+    systemMessage: 'A partida online começou.',
+    systemMessageAt: DateTime.now(),
   );
 
   return OnlineGameSession(

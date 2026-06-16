@@ -344,6 +344,12 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       color: Colors.white70,
                     ),
                   ),
+                  if (session.room.systemMessage != null) ...[
+                    const SizedBox(height: 16),
+                    _RoundRoomSystemMessageCard(
+                      message: session.room.systemMessage!,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Text(
                     result == null
@@ -569,6 +575,37 @@ class _RoundResultLifecycleObserver extends WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     onStateChanged(state);
+  }
+}
+
+class _RoundRoomSystemMessageCard extends StatelessWidget {
+  const _RoundRoomSystemMessageCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF120818),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                textAlign: TextAlign.left,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

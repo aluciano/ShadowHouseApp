@@ -2813,6 +2813,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (session.room.systemMessage != null) ...[
+                    _OnlineRoomSystemMessageCard(
+                      message: session.room.systemMessage!,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (disconnectedPlayers.isNotEmpty) ...[
                     Card(
                       color: const Color(0xFF221229),
@@ -6622,6 +6628,36 @@ class _DetectivePendingEffectCard extends StatelessWidget {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OnlineRoomSystemMessageCard extends StatelessWidget {
+  const _OnlineRoomSystemMessageCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
           ],
         ),
       ),

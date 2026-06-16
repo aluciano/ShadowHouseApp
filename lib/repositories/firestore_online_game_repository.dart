@@ -58,6 +58,8 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         gameMode: gameMode,
         createdAt: now,
         status: OnlineRoomStatus.waiting,
+        systemMessage: '$hostName criou a sala.',
+        systemMessageAt: now,
       ),
     );
 
@@ -132,7 +134,13 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     }
 
     final updatedRoom = _normalizeRoom(
-      room.copyWith(players: updatedPlayers),
+      room.copyWith(
+        players: updatedPlayers,
+        systemMessage: existingPlayerIndex >= 0
+            ? '$normalizedPlayerName reconectou.'
+            : '$normalizedPlayerName entrou na sala.',
+        systemMessageAt: now,
+      ),
     );
 
     await roomDoc.reference.update(onlineRoomToFirestore(updatedRoom));
@@ -171,7 +179,11 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     );
 
     final updatedRoom = _normalizeRoom(
-      room.copyWith(players: updatedPlayers),
+      room.copyWith(
+        players: updatedPlayers,
+        systemMessage: '${updatedPlayers[playerIndex].name} reconectou.',
+        systemMessageAt: now,
+      ),
     );
 
     await roomSnapshot.reference.update(onlineRoomToFirestore(updatedRoom));
@@ -314,9 +326,26 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         lastSeenAt: now,
       );
 
-      final updatedRoom = _normalizeRoom(
-        room.copyWith(players: updatedPlayers),
+      var updatedRoom = _normalizeRoom(
+        room.copyWith(
+          players: updatedPlayers,
+          systemMessage: isConnected
+              ? '${existingPlayer.name} reconectou.'
+              : '${existingPlayer.name} desconectou.',
+          systemMessageAt: now,
+        ),
       );
+
+      if (updatedRoom.hostPlayerId != room.hostPlayerId) {
+        final newHost = updatedRoom.players.firstWhere(
+          (player) => player.id == updatedRoom.hostPlayerId,
+        );
+        updatedRoom = updatedRoom.copyWith(
+          systemMessage:
+              '${existingPlayer.name} desconectou. ${newHost.name} assumiu como anfitrião.',
+          systemMessageAt: now,
+        );
+      }
 
       transaction.set(
         _roomRef(roomId),
@@ -394,6 +423,13 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       final updatedPlayers = room.players
           .where((player) => player.id != removedPlayerId)
           .toList();
+      final removedPlayer = room.players.firstWhere(
+        (player) => player.id == removedPlayerId,
+      );
+      final actingPlayer = room.players.firstWhere(
+        (player) => player.id == actingPlayerId,
+        orElse: () => removedPlayer,
+      );
 
       if (updatedPlayers.isEmpty) {
         transaction.delete(_roomRef(roomId));
@@ -401,9 +437,27 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         return;
       }
 
-      final updatedRoom = _normalizeRoom(
-        room.copyWith(players: updatedPlayers),
+      var updatedRoom = _normalizeRoom(
+        room.copyWith(
+          players: updatedPlayers,
+          systemMessage: enforceHostPermission
+              ? '${removedPlayer.name} foi removido da sala por ${actingPlayer.name}.'
+              : '${removedPlayer.name} saiu da sala.',
+          systemMessageAt: DateTime.now(),
+        ),
       );
+
+      if (updatedRoom.hostPlayerId != room.hostPlayerId) {
+        final newHost = updatedRoom.players.firstWhere(
+          (player) => player.id == updatedRoom.hostPlayerId,
+        );
+        updatedRoom = updatedRoom.copyWith(
+          systemMessage: enforceHostPermission
+              ? '${removedPlayer.name} foi removido da sala por ${actingPlayer.name}. ${newHost.name} assumiu como anfitrião.'
+              : '${removedPlayer.name} saiu da sala. ${newHost.name} assumiu como anfitrião.',
+          systemMessageAt: DateTime.now(),
+        );
+      }
 
       final sessionSnapshot = await transaction.get(_currentSessionRef(roomId));
 

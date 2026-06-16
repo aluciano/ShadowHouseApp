@@ -42,6 +42,8 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       gameMode: gameMode,
       createdAt: now,
       status: OnlineRoomStatus.waiting,
+      systemMessage: '$hostName criou a sala.',
+      systemMessageAt: now,
     );
 
     _latestRoom = room;
@@ -86,6 +88,8 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       gameMode: baseRoom?.gameMode ?? GameMode.expansionBalanced,
       createdAt: baseRoom?.createdAt ?? now,
       status: OnlineRoomStatus.waiting,
+      systemMessage: '$playerName entrou na sala.',
+      systemMessageAt: now,
     );
 
     _latestRoom = room;
@@ -104,6 +108,9 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       throw StateError('A sala anterior não está mais disponível.');
     }
 
+    final reconnectedPlayer = room.players.firstWhere(
+      (player) => player.id == playerId,
+    );
     final updatedPlayers = room.players.map((player) {
       if (player.id != playerId) {
         return player;
@@ -116,14 +123,17 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     }).toList();
 
     final updatedRoom = room.copyWith(players: updatedPlayers);
-    _latestRoom = updatedRoom;
+    _latestRoom = updatedRoom.copyWith(
+      systemMessage: '${reconnectedPlayer.name} reconectou.',
+      systemMessageAt: DateTime.now(),
+    );
 
     if (_latestSession != null) {
-      _latestSession = _latestSession!.copyWith(room: updatedRoom);
+      _latestSession = _latestSession!.copyWith(room: _latestRoom);
       _sessionController.add(_latestSession!);
     }
 
-    return updatedRoom;
+    return _latestRoom!;
   }
 
   @override
@@ -197,7 +207,14 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       );
     }).toList();
 
-    _latestRoom = room.copyWith(players: updatedPlayers);
+    final changedPlayer = updatedPlayers.firstWhere((player) => player.id == playerId);
+    _latestRoom = room.copyWith(
+      players: updatedPlayers,
+      systemMessage: isConnected
+          ? '${changedPlayer.name} reconectou.'
+          : '${changedPlayer.name} desconectou.',
+      systemMessageAt: DateTime.now(),
+    );
 
     if (_latestSession != null) {
       _latestSession = _latestSession!.copyWith(room: _latestRoom);
@@ -219,7 +236,12 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     final updatedPlayers =
         room.players.where((player) => player.id != playerId).toList();
 
-    _latestRoom = room.copyWith(players: updatedPlayers);
+    final removedPlayer = room.players.firstWhere((player) => player.id == playerId);
+    _latestRoom = room.copyWith(
+      players: updatedPlayers,
+      systemMessage: '${removedPlayer.name} saiu da sala.',
+      systemMessageAt: DateTime.now(),
+    );
 
     if (_latestSession != null) {
       _latestSession = _latestSession!.copyWith(room: _latestRoom);
@@ -233,10 +255,28 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     required String actingPlayerId,
     required String removedPlayerId,
   }) async {
-    await leaveRoom(
-      roomId: roomId,
-      playerId: removedPlayerId,
+    final room = _latestRoom;
+
+    if (room == null || room.id != roomId) {
+      return;
+    }
+
+    final removedPlayer = room.players.firstWhere((player) => player.id == removedPlayerId);
+    final actingPlayer = room.players.firstWhere((player) => player.id == actingPlayerId);
+    final updatedPlayers =
+        room.players.where((player) => player.id != removedPlayerId).toList();
+
+    _latestRoom = room.copyWith(
+      players: updatedPlayers,
+      systemMessage:
+          '${removedPlayer.name} foi removido da sala por ${actingPlayer.name}.',
+      systemMessageAt: DateTime.now(),
     );
+
+    if (_latestSession != null) {
+      _latestSession = _latestSession!.copyWith(room: _latestRoom);
+      _sessionController.add(_latestSession!);
+    }
   }
 
   OnlineGameSession _createSessionForRoom(OnlineRoom room) {

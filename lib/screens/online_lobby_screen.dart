@@ -309,6 +309,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                         color: Colors.white70,
                       ),
                     ),
+                    if (room.systemMessage != null) ...[
+                      const SizedBox(height: 20),
+                      _RoomSystemMessageCard(message: room.systemMessage!),
+                    ],
                     const SizedBox(height: 28),
                     Card(
                       color: const Color(0xFF221229),
@@ -538,5 +542,35 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
       player.isHost ? 'Anfitrião' : 'Convidado',
       player.isConnected ? 'conectado' : 'desconectado',
     ].join(' • ');
+  }
+}
+
+class _RoomSystemMessageCard extends StatelessWidget {
+  const _RoomSystemMessageCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -278,6 +278,27 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
     final readyForNextRoundCount = expectedPlayerIds
         .where(session.nextRoundReadyPlayerIds.contains)
         .length;
+    final disconnectedPlayers = session.room.players.where((player) {
+      return !player.id.startsWith('placeholder_player_') && !player.isConnected;
+    }).toList();
+    final rematchAcceptedNames = session.room.players
+        .where((player) => session.rematchProposalPlayerIds.contains(player.id))
+        .map((player) => player.name)
+        .toList();
+    final rematchPendingNames = session.room.players
+        .where((player) => !session.rematchProposalPlayerIds.contains(player.id))
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.name)
+        .toList();
+    final nextRoundReadyNames = session.room.players
+        .where((player) => session.nextRoundReadyPlayerIds.contains(player.id))
+        .map((player) => player.name)
+        .toList();
+    final nextRoundPendingNames = session.room.players
+        .where((player) => !session.nextRoundReadyPlayerIds.contains(player.id))
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.name)
+        .toList();
 
     final currentRoomPlayer = session.room.players.where(
       (player) => player.id == widget.currentPlayerId,
@@ -348,6 +369,13 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                     const SizedBox(height: 16),
                     _RoundRoomSystemMessageCard(
                       message: session.room.systemMessage!,
+                    ),
+                  ],
+                  if (disconnectedPlayers.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _RoundDisconnectedPlayersCard(
+                      playerNames:
+                          disconnectedPlayers.map((player) => player.name).toList(),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -473,6 +501,8 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       expectedCount: expectedPlayerIds.length,
                       currentPlayerProposed: currentPlayerProposed,
                       isStartingRematch: isStartingRematch,
+                      acceptedNames: rematchAcceptedNames,
+                      pendingNames: rematchPendingNames,
                       onPropose: () {
                         proposeRematch(session, currentPlayer.id);
                       },
@@ -483,6 +513,8 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                       expectedCount: expectedPlayerIds.length,
                       currentPlayerIsReady: currentPlayerIsReadyForNextRound,
                       isStartingNextRound: isStartingNextRound,
+                      readyNames: nextRoundReadyNames,
+                      pendingNames: nextRoundPendingNames,
                       onConfirmReady: () {
                         confirmReadyForNextRound(session, currentPlayer.id);
                       },
@@ -609,12 +641,44 @@ class _RoundRoomSystemMessageCard extends StatelessWidget {
   }
 }
 
+class _RoundDisconnectedPlayersCard extends StatelessWidget {
+  const _RoundDisconnectedPlayersCard({
+    required this.playerNames,
+  });
+
+  final List<String> playerNames;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: const Color(0xFF120818),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(Icons.wifi_off, color: Color(0xFFE7C76F)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Desconectados: ${playerNames.join(', ')}',
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NextRoundReadyCard extends StatelessWidget {
   const _NextRoundReadyCard({
     required this.readyCount,
     required this.expectedCount,
     required this.currentPlayerIsReady,
     required this.isStartingNextRound,
+    required this.readyNames,
+    required this.pendingNames,
     required this.onConfirmReady,
   });
 
@@ -622,6 +686,8 @@ class _NextRoundReadyCard extends StatelessWidget {
   final int expectedCount;
   final bool currentPlayerIsReady;
   final bool isStartingNextRound;
+  final List<String> readyNames;
+  final List<String> pendingNames;
   final VoidCallback onConfirmReady;
 
   @override
@@ -646,6 +712,20 @@ class _NextRoundReadyCard extends StatelessWidget {
               '$readyCount de $expectedCount jogadores estão prontos.',
               style: const TextStyle(color: Colors.white70),
             ),
+            if (readyNames.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Prontos: ${readyNames.join(', ')}',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+            if (pendingNames.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Faltam: ${pendingNames.join(', ')}',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: currentPlayerIsReady || isStartingNextRound
@@ -689,6 +769,8 @@ class _RematchCard extends StatelessWidget {
     required this.expectedCount,
     required this.currentPlayerProposed,
     required this.isStartingRematch,
+    required this.acceptedNames,
+    required this.pendingNames,
     required this.onPropose,
   });
 
@@ -697,6 +779,8 @@ class _RematchCard extends StatelessWidget {
   final int expectedCount;
   final bool currentPlayerProposed;
   final bool isStartingRematch;
+  final List<String> acceptedNames;
+  final List<String> pendingNames;
   final VoidCallback onPropose;
 
   @override
@@ -726,6 +810,20 @@ class _RematchCard extends StatelessWidget {
               '$proposalCount de $expectedCount jogadores aceitaram.',
               style: const TextStyle(color: Colors.white70),
             ),
+            if (acceptedNames.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Aceitaram: ${acceptedNames.join(', ')}',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+            if (pendingNames.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Faltam: ${pendingNames.join(', ')}',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed:

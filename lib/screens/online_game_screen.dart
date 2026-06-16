@@ -189,6 +189,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         return effect.copyWith(
           participantPlayerIds: _rumorsParticipantPlayerIds(gameState),
         );
+      case OnlineEffectType.frenzy:
+        return effect.copyWith(
+          participantPlayerIds: _shareParticipantPlayerIds(gameState),
+        );
       default:
         return effect;
     }
@@ -439,6 +443,14 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     if (card.templateId == 'rumores') {
       return OnlinePendingEffect(
         type: OnlineEffectType.rumors,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'frenesi') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.frenzy,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -1391,43 +1403,31 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         return;
       }
 
-      final selectedCardsByPlayerId = <String, GameCard>{};
+      final previewCards = previewFrenzyCards(
+        cards: effect.participantPlayerIds.map((playerId) {
+          final player = _playerById(session.gameState, playerId);
+          final selectedCardId = selectedCardIdsByPlayerId[playerId];
 
-      for (final playerId in effect.participantPlayerIds) {
-        final player = _playerById(session.gameState, playerId);
-        final selectedCardId = selectedCardIdsByPlayerId[playerId];
+          if (selectedCardId == null) {
+            throw StateError('Carta do Frenesi não encontrada para $playerId.');
+          }
 
-        if (selectedCardId == null) {
-          continue;
-        }
-
-        selectedCardsByPlayerId[playerId] = _cardById(
-          player.hand,
-          selectedCardId,
-        );
-      }
-
-      final summary = resolveCircularCardPassEffect(
-        gameState: session.gameState,
-        selectedCardByPlayerId: selectedCardsByPlayerId,
-        passToLeft: true,
+          return _cardById(player.hand, selectedCardId);
+        }),
       );
 
       await _saveCurrentSession(
         session.copyWith(
-          gameState: session.gameState,
           pendingEffect: effect.copyWith(
             completedPlayerIds: completedPlayerIds,
             selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
             selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
-            receivedCardCountByPlayerId: summary,
-            resultMessage: 'As cartas escolhidas foram passadas para a esquerda.',
-            acknowledgedPlayerIds: const [],
+            previewCardNames: previewCards.map((card) => card.name).toList(),
           ),
         ),
       );
     } catch (error) {
-      showMessage('Não foi possível compartilhar a carta: $error');
+      showMessage('Não foi possível concluir Frenesi!!!: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -1618,6 +1618,176 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       );
     } catch (error) {
       showMessage('Não foi possível continuar Rumores: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectFrenzyCard({
+    required OnlineGameSession session,
+    required GameCard card,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    final selectedCardIdsByPlayerId = Map<String, String>.from(
+      effect.selectedCardIdsByPlayerId,
+    );
+    final selectedCardNamesByPlayerId = Map<String, String>.from(
+      effect.selectedCardNamesByPlayerId,
+    );
+    final completedPlayerIds = {
+      ...effect.completedPlayerIds,
+      widget.currentPlayerId,
+    }.toList();
+
+    selectedCardIdsByPlayerId[widget.currentPlayerId] = card.id;
+    selectedCardNamesByPlayerId[widget.currentPlayerId] = card.name;
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final everyoneSelected = effect.participantPlayerIds.every(
+        completedPlayerIds.contains,
+      );
+
+      if (!everyoneSelected) {
+        await _saveCurrentSession(
+          session.copyWith(
+            pendingEffect: effect.copyWith(
+              completedPlayerIds: completedPlayerIds,
+              selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+              selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      final previewCards = previewFrenzyCards(
+        cards: effect.participantPlayerIds.map((playerId) {
+          final player = _playerById(session.gameState, playerId);
+          final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+          if (selectedCardId == null) {
+            throw StateError('Carta do Frenesi não encontrada para $playerId.');
+          }
+
+          return _cardById(player.hand, selectedCardId);
+        }),
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            completedPlayerIds: completedPlayerIds,
+            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            previewCardNames: previewCards.map((card) => card.name).toList(),
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir Frenesi!!!: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finalizeFrenzyShuffle(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final selectedCardsByPlayerId = <String, GameCard>{};
+
+      for (final playerId in effect.participantPlayerIds) {
+        final player = _playerById(session.gameState, playerId);
+        final selectedCardId = effect.selectedCardIdsByPlayerId[playerId];
+
+        if (selectedCardId == null) {
+          continue;
+        }
+
+        selectedCardsByPlayerId[playerId] = _cardById(
+          player.hand,
+          selectedCardId,
+        );
+      }
+
+      final frenzyResolution = resolveFrenzyEffect(
+        gameState: session.gameState,
+        selectedCardByPlayerId: selectedCardsByPlayerId,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            receivedCardCountByPlayerId:
+                frenzyResolution.receivedCardCountByPlayerId,
+            receivedCardNamesByPlayerId:
+                frenzyResolution.receivedCardNameByPlayerId,
+            previewCardNames: const [],
+            resultMessage:
+                'As cartas escolhidas foram embaralhadas e redistribuídas entre os participantes.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir Frenesi!!!: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipFrenzyWithoutParticipants(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar Frenesi!!!: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -2055,6 +2225,18 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onRumorsWithoutCards: () {
                         skipRumorsWithoutCards(session);
                       },
+                      onFrenzyCardSelected: (card) {
+                        selectFrenzyCard(
+                          session: session,
+                          card: card,
+                        );
+                      },
+                      onFrenzyWithoutParticipants: () {
+                        skipFrenzyWithoutParticipants(session);
+                      },
+                      onFrenzyFinalize: () {
+                        finalizeFrenzyShuffle(session);
+                      },
                       onPublicNoticeSubmitted: (message) {
                         submitPublicNoticeMessage(
                           session: session,
@@ -2186,6 +2368,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onShareWithoutParticipants,
     required this.onRumorsCardSelected,
     required this.onRumorsWithoutCards,
+    required this.onFrenzyCardSelected,
+    required this.onFrenzyWithoutParticipants,
+    required this.onFrenzyFinalize,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -2223,6 +2408,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final VoidCallback onShareWithoutParticipants;
   final ValueChanged<GameCard> onRumorsCardSelected;
   final VoidCallback onRumorsWithoutCards;
+  final ValueChanged<GameCard> onFrenzyCardSelected;
+  final VoidCallback onFrenzyWithoutParticipants;
+  final VoidCallback onFrenzyFinalize;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -2370,6 +2558,16 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           isResolvingEffect: isResolvingEffect,
           onCardSelected: onRumorsCardSelected,
           onWithoutCards: onRumorsWithoutCards,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.frenzy:
+        return _FrenzyPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onCardSelected: onFrenzyCardSelected,
+          onWithoutParticipants: onFrenzyWithoutParticipants,
+          onFinalize: onFrenzyFinalize,
           onAcknowledge: onAcknowledge,
         );
     }
@@ -3344,6 +3542,248 @@ class _RumorsPendingEffectCard extends StatelessWidget {
                 currentPlayerAlreadySelected
                     ? 'Sua escolha em Rumores já foi registrada. Aguardando os demais jogadores.'
                     : 'Aguardando os jogadores concluírem Rumores.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FrenzyPendingEffectCard extends StatelessWidget {
+  const _FrenzyPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+    required this.onWithoutParticipants,
+    required this.onFinalize,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutParticipants;
+  final VoidCallback onFinalize;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == currentPlayerId,
+      orElse: () => session.gameState.currentPlayer,
+    );
+    final currentPlayerAlreadySelected =
+        effect.completedPlayerIds.contains(currentPlayerId);
+    final currentPlayerIsParticipant =
+        effect.participantPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final selectedCount = effect.completedPlayerIds.length;
+    final effectWasResolved = effect.resultMessage != null;
+    final previewWasPrepared = effect.previewCardNames.isNotEmpty;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.shuffle, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Frenesi!!!',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...session.gameState.players.map((player) {
+                final receivedCount =
+                    effect.receivedCardCountByPlayerId[player.id] ?? 0;
+                final receivedCardName =
+                    effect.receivedCardNamesByPlayerId[player.id];
+                final isCurrentViewer = player.id == currentPlayerId;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isCurrentViewer && receivedCardName != null
+                              ? '${player.name} - sua nova carta: $receivedCardName'
+                              : player.name,
+                          style: TextStyle(
+                            color: isCurrentViewer && receivedCardName != null
+                                ? const Color(0xFFE7C76F)
+                                : null,
+                            fontWeight: isCurrentViewer && receivedCardName != null
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$receivedCount carta${receivedCount == 1 ? '' : 's'} recebida${receivedCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: receivedCount > 0
+                              ? const Color(0xFFE7C76F)
+                              : Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (effect.participantPlayerIds.isEmpty) ...[
+              const Text(
+                'Nenhum jogador tem cartas disponíveis para Frenesi!!!',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentPlayerId == actingPlayer.id) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutParticipants,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (previewWasPrepared) ...[
+              if (currentPlayerId == actingPlayer.id) ...[
+                const Text(
+                  'Prévia embaralhada das cartas escolhidas:',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...effect.previewCardNames.map((cardName) {
+                  return Card(
+                    color: const Color(0xFF120818),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.visibility,
+                        color: Color(0xFFE7C76F),
+                      ),
+                      title: Text(
+                        cardName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onFinalize,
+                  icon: const Icon(Icons.shuffle),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Embaralhar e redistribuir'),
+                  ),
+                ),
+              ] else
+                Text(
+                  'Aguardando ${actingPlayer.name} revisar o embaralhamento e liberar a redistribuição final.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+            ] else if (currentPlayerIsParticipant &&
+                !currentPlayerAlreadySelected) ...[
+              Text(
+                '${currentPlayer.name}, escolha uma carta da sua mão para embaralhar.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+              const SizedBox(height: 12),
+              ...currentPlayer.hand.map((card) {
+                return Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    title: Text(
+                      card.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(card.shortText),
+                    trailing: const Icon(Icons.shuffle),
+                    onTap: isResolvingEffect
+                        ? null
+                        : () {
+                            onCardSelected(card);
+                          },
+                  ),
+                );
+              }),
+            ] else ...[
+              Text(
+                currentPlayerAlreadySelected
+                    ? 'Sua carta para o Frenesi já foi registrada. Aguardando os demais jogadores.'
+                    : 'Aguardando os jogadores escolherem suas cartas para o Frenesi.',
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 8),

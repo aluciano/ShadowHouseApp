@@ -11,6 +11,7 @@ enum OnlineEffectType {
   swap,
   share,
   rumors,
+  frenzy,
 }
 
 class OnlinePendingEffect {
@@ -31,6 +32,8 @@ class OnlinePendingEffect {
     this.selectedCardIdsByPlayerId = const {},
     this.selectedCardNamesByPlayerId = const {},
     this.receivedCardCountByPlayerId = const {},
+    this.receivedCardNamesByPlayerId = const {},
+    this.previewCardNames = const [],
     this.resultMessage,
     this.acknowledgedPlayerIds = const [],
   });
@@ -51,6 +54,8 @@ class OnlinePendingEffect {
   final Map<String, String> selectedCardIdsByPlayerId;
   final Map<String, String> selectedCardNamesByPlayerId;
   final Map<String, int> receivedCardCountByPlayerId;
+  final Map<String, String> receivedCardNamesByPlayerId;
+  final List<String> previewCardNames;
   final String? resultMessage;
   final List<String> acknowledgedPlayerIds;
 
@@ -73,6 +78,8 @@ class OnlinePendingEffect {
     Map<String, String>? selectedCardIdsByPlayerId,
     Map<String, String>? selectedCardNamesByPlayerId,
     Map<String, int>? receivedCardCountByPlayerId,
+    Map<String, String>? receivedCardNamesByPlayerId,
+    List<String>? previewCardNames,
     String? resultMessage,
     List<String>? acknowledgedPlayerIds,
   }) {
@@ -98,6 +105,9 @@ class OnlinePendingEffect {
           selectedCardNamesByPlayerId ?? this.selectedCardNamesByPlayerId,
       receivedCardCountByPlayerId:
           receivedCardCountByPlayerId ?? this.receivedCardCountByPlayerId,
+      receivedCardNamesByPlayerId:
+          receivedCardNamesByPlayerId ?? this.receivedCardNamesByPlayerId,
+      previewCardNames: previewCardNames ?? this.previewCardNames,
       resultMessage: resultMessage ?? this.resultMessage,
       acknowledgedPlayerIds:
           acknowledgedPlayerIds ?? this.acknowledgedPlayerIds,

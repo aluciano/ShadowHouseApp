@@ -14,6 +14,7 @@ import 'family_baby_effect_screen.dart';
 import 'witness_effect_screen.dart';
 import 'card_exchange_effect_screen.dart';
 import 'circular_card_pass_effect_screen.dart';
+import 'frenzy_effect_screen.dart';
 import 'rumors_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
@@ -331,6 +332,20 @@ class HandScreen extends StatelessWidget {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                             builder: (_) => RumorsEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                              (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'frenesi') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => FrenzyEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
                             ),

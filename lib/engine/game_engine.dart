@@ -178,6 +178,12 @@ void playCard({
     return;
   }
 
+  final frenzyWasPlayed = card.templateId == 'frenesi';
+
+  if (frenzyWasPlayed) {
+    return;
+  }
+
   final shareWasPlayed = card.templateId == 'compartilhar';
 
   if (shareWasPlayed) {
@@ -682,4 +688,70 @@ Map<String, int> resolveRumorsEffect({
   gameState.moveToNextPlayer();
 
   return receivedCardsCountByPlayerId;
+}
+
+List<GameCard> previewFrenzyCards({
+  required Iterable<GameCard> cards,
+}) {
+  final random = Random();
+  final shuffledCards = List<GameCard>.from(cards);
+
+  shuffledCards.shuffle(random);
+
+  return shuffledCards;
+}
+
+class FrenzyResolution {
+  const FrenzyResolution({
+    required this.receivedCardCountByPlayerId,
+    required this.receivedCardNameByPlayerId,
+  });
+
+  final Map<String, int> receivedCardCountByPlayerId;
+  final Map<String, String> receivedCardNameByPlayerId;
+}
+
+FrenzyResolution resolveFrenzyEffect({
+  required GameState gameState,
+  required Map<String, GameCard> selectedCardByPlayerId,
+}) {
+  final random = Random();
+  final chosenCards = <GameCard>[];
+  final participantIds = selectedCardByPlayerId.keys.toList();
+  final receivedCardsCountByPlayerId = <String, int>{};
+  final receivedCardNameByPlayerId = <String, String>{};
+
+  for (final player in gameState.players) {
+    receivedCardsCountByPlayerId[player.id] = 0;
+  }
+
+  for (final entry in selectedCardByPlayerId.entries) {
+    final player = gameState.players.firstWhere(
+      (item) => item.id == entry.key,
+    );
+
+    player.hand.removeWhere((card) => card.id == entry.value.id);
+    chosenCards.add(entry.value);
+  }
+
+  chosenCards.shuffle(random);
+
+  for (int index = 0; index < participantIds.length; index++) {
+    final player = gameState.players.firstWhere(
+      (item) => item.id == participantIds[index],
+    );
+    final receivedCard = chosenCards[index];
+
+    player.hand.add(receivedCard);
+    receivedCardsCountByPlayerId[player.id] =
+        (receivedCardsCountByPlayerId[player.id] ?? 0) + 1;
+    receivedCardNameByPlayerId[player.id] = receivedCard.name;
+  }
+
+  gameState.moveToNextPlayer();
+
+  return FrenzyResolution(
+    receivedCardCountByPlayerId: receivedCardsCountByPlayerId,
+    receivedCardNameByPlayerId: receivedCardNameByPlayerId,
+  );
 }

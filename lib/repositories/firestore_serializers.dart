@@ -205,6 +205,8 @@ Map<String, Object?> onlinePendingEffectToFirestore(
     'selectedCardIdsByPlayerId': effect.selectedCardIdsByPlayerId,
     'selectedCardNamesByPlayerId': effect.selectedCardNamesByPlayerId,
     'receivedCardCountByPlayerId': effect.receivedCardCountByPlayerId,
+    'receivedCardNamesByPlayerId': effect.receivedCardNamesByPlayerId,
+    'previewCardNames': effect.previewCardNames,
     'resultMessage': effect.resultMessage,
     'acknowledgedPlayerIds': effect.acknowledgedPlayerIds,
   };
@@ -243,6 +245,12 @@ OnlinePendingEffect onlinePendingEffectFromFirestore(
     ),
     receivedCardCountByPlayerId: Map<String, int>.from(
       data['receivedCardCountByPlayerId'] as Map<String, dynamic>? ?? const {},
+    ),
+    receivedCardNamesByPlayerId: Map<String, String>.from(
+      data['receivedCardNamesByPlayerId'] as Map<String, dynamic>? ?? const {},
+    ),
+    previewCardNames: List<String>.from(
+      data['previewCardNames'] as List<dynamic>? ?? [],
     ),
     resultMessage: data['resultMessage'] as String?,
     acknowledgedPlayerIds: List<String>.from(

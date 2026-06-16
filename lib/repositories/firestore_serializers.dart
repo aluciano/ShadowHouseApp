@@ -200,6 +200,11 @@ Map<String, Object?> onlinePendingEffectToFirestore(
     'secondaryCardId': effect.secondaryCardId,
     'secondaryCardName': effect.secondaryCardName,
     'secondaryCardTemplateId': effect.secondaryCardTemplateId,
+    'participantPlayerIds': effect.participantPlayerIds,
+    'completedPlayerIds': effect.completedPlayerIds,
+    'selectedCardIdsByPlayerId': effect.selectedCardIdsByPlayerId,
+    'selectedCardNamesByPlayerId': effect.selectedCardNamesByPlayerId,
+    'receivedCardCountByPlayerId': effect.receivedCardCountByPlayerId,
     'resultMessage': effect.resultMessage,
     'acknowledgedPlayerIds': effect.acknowledgedPlayerIds,
   };
@@ -224,6 +229,21 @@ OnlinePendingEffect onlinePendingEffectFromFirestore(
     secondaryCardId: data['secondaryCardId'] as String?,
     secondaryCardName: data['secondaryCardName'] as String?,
     secondaryCardTemplateId: data['secondaryCardTemplateId'] as String?,
+    participantPlayerIds: List<String>.from(
+      data['participantPlayerIds'] as List<dynamic>? ?? [],
+    ),
+    completedPlayerIds: List<String>.from(
+      data['completedPlayerIds'] as List<dynamic>? ?? [],
+    ),
+    selectedCardIdsByPlayerId: Map<String, String>.from(
+      data['selectedCardIdsByPlayerId'] as Map<String, dynamic>? ?? const {},
+    ),
+    selectedCardNamesByPlayerId: Map<String, String>.from(
+      data['selectedCardNamesByPlayerId'] as Map<String, dynamic>? ?? const {},
+    ),
+    receivedCardCountByPlayerId: Map<String, int>.from(
+      data['receivedCardCountByPlayerId'] as Map<String, dynamic>? ?? const {},
+    ),
     resultMessage: data['resultMessage'] as String?,
     acknowledgedPlayerIds: List<String>.from(
       data['acknowledgedPlayerIds'] as List<dynamic>? ?? [],

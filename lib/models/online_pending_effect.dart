@@ -8,6 +8,9 @@ enum OnlineEffectType {
   familyBaby,
   publicNotice,
   protectionCancel,
+  swap,
+  share,
+  rumors,
 }
 
 class OnlinePendingEffect {
@@ -23,6 +26,11 @@ class OnlinePendingEffect {
     this.secondaryCardId,
     this.secondaryCardName,
     this.secondaryCardTemplateId,
+    this.participantPlayerIds = const [],
+    this.completedPlayerIds = const [],
+    this.selectedCardIdsByPlayerId = const {},
+    this.selectedCardNamesByPlayerId = const {},
+    this.receivedCardCountByPlayerId = const {},
     this.resultMessage,
     this.acknowledgedPlayerIds = const [],
   });
@@ -38,6 +46,11 @@ class OnlinePendingEffect {
   final String? secondaryCardId;
   final String? secondaryCardName;
   final String? secondaryCardTemplateId;
+  final List<String> participantPlayerIds;
+  final List<String> completedPlayerIds;
+  final Map<String, String> selectedCardIdsByPlayerId;
+  final Map<String, String> selectedCardNamesByPlayerId;
+  final Map<String, int> receivedCardCountByPlayerId;
   final String? resultMessage;
   final List<String> acknowledgedPlayerIds;
 
@@ -55,6 +68,11 @@ class OnlinePendingEffect {
     String? secondaryCardId,
     String? secondaryCardName,
     String? secondaryCardTemplateId,
+    List<String>? participantPlayerIds,
+    List<String>? completedPlayerIds,
+    Map<String, String>? selectedCardIdsByPlayerId,
+    Map<String, String>? selectedCardNamesByPlayerId,
+    Map<String, int>? receivedCardCountByPlayerId,
     String? resultMessage,
     List<String>? acknowledgedPlayerIds,
   }) {
@@ -72,6 +90,14 @@ class OnlinePendingEffect {
       secondaryCardName: secondaryCardName ?? this.secondaryCardName,
       secondaryCardTemplateId:
           secondaryCardTemplateId ?? this.secondaryCardTemplateId,
+      participantPlayerIds: participantPlayerIds ?? this.participantPlayerIds,
+      completedPlayerIds: completedPlayerIds ?? this.completedPlayerIds,
+      selectedCardIdsByPlayerId:
+          selectedCardIdsByPlayerId ?? this.selectedCardIdsByPlayerId,
+      selectedCardNamesByPlayerId:
+          selectedCardNamesByPlayerId ?? this.selectedCardNamesByPlayerId,
+      receivedCardCountByPlayerId:
+          receivedCardCountByPlayerId ?? this.receivedCardCountByPlayerId,
       resultMessage: resultMessage ?? this.resultMessage,
       acknowledgedPlayerIds:
           acknowledgedPlayerIds ?? this.acknowledgedPlayerIds,

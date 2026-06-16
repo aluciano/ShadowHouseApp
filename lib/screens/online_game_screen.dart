@@ -37,6 +37,19 @@ OnlineActiveProtection? _blockingProtectionForPlayer({
   return null;
 }
 
+Player _playerToRightInGameState({
+  required GameState gameState,
+  required Player currentPlayer,
+}) {
+  final currentIndex = gameState.players.indexWhere(
+    (player) => player.id == currentPlayer.id,
+  );
+  final rightIndex =
+      (currentIndex - 1 + gameState.players.length) % gameState.players.length;
+
+  return gameState.players[rightIndex];
+}
+
 class OnlineGameScreen extends StatefulWidget {
   const OnlineGameScreen({
     super.key,
@@ -141,6 +154,46 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return null;
   }
 
+  List<String> _shareParticipantPlayerIds(GameState gameState) {
+    return gameState.players
+        .where((player) => player.hand.isNotEmpty)
+        .map((player) => player.id)
+        .toList();
+  }
+
+  List<String> _rumorsParticipantPlayerIds(GameState gameState) {
+    return gameState.players.where((player) {
+      final sourcePlayer = _playerToRightInGameState(
+        gameState: gameState,
+        currentPlayer: player,
+      );
+ 
+      return sourcePlayer.hand.isNotEmpty;
+    }).map((player) => player.id).toList();
+  }
+
+  OnlinePendingEffect? _preparePendingEffect({
+    required GameState gameState,
+    required OnlinePendingEffect? effect,
+  }) {
+    if (effect == null) {
+      return null;
+    }
+
+    switch (effect.type) {
+      case OnlineEffectType.share:
+        return effect.copyWith(
+          participantPlayerIds: _shareParticipantPlayerIds(gameState),
+        );
+      case OnlineEffectType.rumors:
+        return effect.copyWith(
+          participantPlayerIds: _rumorsParticipantPlayerIds(gameState),
+        );
+      default:
+        return effect;
+    }
+  }
+
   Future<void> playOnlineCard({
     required OnlineGameSession session,
     required GameCard card,
@@ -243,9 +296,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         gameState.moveToNextPlayer();
       }
 
-      final pendingEffect = _pendingEffectForCard(
+      final pendingEffect = _preparePendingEffect(
+        gameState: gameState,
+        effect: _pendingEffectForCard(
         card: card,
         actingPlayerId: player.id,
+        ),
       );
 
       await _saveCurrentSession(
@@ -359,6 +415,30 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     if (card.templateId == 'palavra_final') {
       return OnlinePendingEffect(
         type: OnlineEffectType.protectionCancel,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'trocar') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.swap,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'compartilhar') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.share,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'rumores') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.rumors,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -1101,6 +1181,452 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
   }
 
+  Future<void> selectSwapTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher o alvo da troca: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectSwapActingCard({
+    required OnlineGameSession session,
+    required GameCard card,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            revealedCardId: card.id,
+            revealedCardName: card.name,
+            revealedCardTemplateId: card.templateId,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher a carta da troca: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveSwapTargetCard({
+    required OnlineGameSession session,
+    required GameCard card,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null ||
+        effect.targetPlayerId == null ||
+        effect.revealedCardId == null ||
+        isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId!,
+      );
+      final actingPlayerCard = _cardById(
+        actingPlayer.hand,
+        effect.revealedCardId!,
+      );
+
+      resolveCardExchange(
+        gameState: session.gameState,
+        actingPlayer: actingPlayer,
+        actingPlayerCard: actingPlayerCard,
+        targetPlayer: targetPlayer,
+        targetPlayerCard: card,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            secondaryCardId: card.id,
+            secondaryCardName: card.name,
+            secondaryCardTemplateId: card.templateId,
+            resultMessage:
+                '${actingPlayer.name} e ${targetPlayer.name} trocaram uma carta.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir a troca: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipSwapWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar a troca: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectShareCard({
+    required OnlineGameSession session,
+    required GameCard card,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    final selectedCardIdsByPlayerId = Map<String, String>.from(
+      effect.selectedCardIdsByPlayerId,
+    );
+    final selectedCardNamesByPlayerId = Map<String, String>.from(
+      effect.selectedCardNamesByPlayerId,
+    );
+    final completedPlayerIds = {
+      ...effect.completedPlayerIds,
+      widget.currentPlayerId,
+    }.toList();
+
+    selectedCardIdsByPlayerId[widget.currentPlayerId] = card.id;
+    selectedCardNamesByPlayerId[widget.currentPlayerId] = card.name;
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final everyoneSelected = effect.participantPlayerIds.every(
+        completedPlayerIds.contains,
+      );
+
+      if (!everyoneSelected) {
+        await _saveCurrentSession(
+          session.copyWith(
+            pendingEffect: effect.copyWith(
+              completedPlayerIds: completedPlayerIds,
+              selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+              selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selectedCardsByPlayerId = <String, GameCard>{};
+
+      for (final playerId in effect.participantPlayerIds) {
+        final player = _playerById(session.gameState, playerId);
+        final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+        if (selectedCardId == null) {
+          continue;
+        }
+
+        selectedCardsByPlayerId[playerId] = _cardById(
+          player.hand,
+          selectedCardId,
+        );
+      }
+
+      final summary = resolveCircularCardPassEffect(
+        gameState: session.gameState,
+        selectedCardByPlayerId: selectedCardsByPlayerId,
+        passToLeft: true,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            completedPlayerIds: completedPlayerIds,
+            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            receivedCardCountByPlayerId: summary,
+            resultMessage: 'As cartas escolhidas foram passadas para a esquerda.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível compartilhar a carta: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipShareWithoutParticipants(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar Compartilhar: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectRumorsCard({
+    required OnlineGameSession session,
+    required GameCard card,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    final selectedCardIdsByPlayerId = Map<String, String>.from(
+      effect.selectedCardIdsByPlayerId,
+    );
+    final selectedCardNamesByPlayerId = Map<String, String>.from(
+      effect.selectedCardNamesByPlayerId,
+    );
+    final completedPlayerIds = {
+      ...effect.completedPlayerIds,
+      widget.currentPlayerId,
+    }.toList();
+
+    selectedCardIdsByPlayerId[widget.currentPlayerId] = card.id;
+    selectedCardNamesByPlayerId[widget.currentPlayerId] = card.name;
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final everyoneSelected = effect.participantPlayerIds.every(
+        completedPlayerIds.contains,
+      );
+
+      if (!everyoneSelected) {
+        await _saveCurrentSession(
+          session.copyWith(
+            pendingEffect: effect.copyWith(
+              completedPlayerIds: completedPlayerIds,
+              selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+              selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selections = <RumorCardSelection>[];
+
+      for (final playerId in effect.participantPlayerIds) {
+        final receiverPlayer = _playerById(session.gameState, playerId);
+        final sourcePlayer = _playerToRightInGameState(
+          gameState: session.gameState,
+          currentPlayer: receiverPlayer,
+        );
+        final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+        if (selectedCardId == null) {
+          continue;
+        }
+
+        selections.add(
+          RumorCardSelection(
+            receiverPlayerId: receiverPlayer.id,
+            sourcePlayerId: sourcePlayer.id,
+            card: _cardById(sourcePlayer.hand, selectedCardId),
+          ),
+        );
+      }
+
+      final summary = resolveRumorsEffect(
+        gameState: session.gameState,
+        selections: selections,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            completedPlayerIds: completedPlayerIds,
+            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+            receivedCardCountByPlayerId: summary,
+            resultMessage:
+                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir Rumores: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipRumorsWithoutCards(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    final completedPlayerIds = {
+      ...effect.completedPlayerIds,
+      widget.currentPlayerId,
+    }.toList();
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final everyoneSelected = effect.participantPlayerIds.every(
+        completedPlayerIds.contains,
+      );
+
+      if (!everyoneSelected) {
+        await _saveCurrentSession(
+          session.copyWith(
+            pendingEffect: effect.copyWith(
+              completedPlayerIds: completedPlayerIds,
+            ),
+          ),
+        );
+        return;
+      }
+
+      final summary = resolveRumorsEffect(
+        gameState: session.gameState,
+        selections: const [],
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            completedPlayerIds: completedPlayerIds,
+            receivedCardCountByPlayerId: summary,
+            resultMessage:
+                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível continuar Rumores: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   String _forcedDiscardResultMessage({
     required GameState gameState,
     required Player targetPlayer,
@@ -1293,9 +1819,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
   bool _cardNeedsOnlineResolution(GameCard card) {
     return {
       'testemunha',
-      'trocar',
-      'compartilhar',
-      'rumores',
     }.contains(card.templateId);
   }
 
@@ -1493,6 +2016,45 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onProtectionCancelWithoutTarget: () {
                         skipProtectionCancelWithoutTarget(session);
                       },
+                      onSwapTargetSelected: (target) {
+                        selectSwapTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onSwapActingCardSelected: (card) {
+                        selectSwapActingCard(
+                          session: session,
+                          card: card,
+                        );
+                      },
+                      onSwapTargetCardSelected: (card) {
+                        resolveSwapTargetCard(
+                          session: session,
+                          card: card,
+                        );
+                      },
+                      onSwapWithoutTarget: () {
+                        skipSwapWithoutTarget(session);
+                      },
+                      onShareCardSelected: (card) {
+                        selectShareCard(
+                          session: session,
+                          card: card,
+                        );
+                      },
+                      onShareWithoutParticipants: () {
+                        skipShareWithoutParticipants(session);
+                      },
+                      onRumorsCardSelected: (card) {
+                        selectRumorsCard(
+                          session: session,
+                          card: card,
+                        );
+                      },
+                      onRumorsWithoutCards: () {
+                        skipRumorsWithoutCards(session);
+                      },
                       onPublicNoticeSubmitted: (message) {
                         submitPublicNoticeMessage(
                           session: session,
@@ -1616,6 +2178,14 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onFamilyBabyContinue,
     required this.onProtectionCancelSelected,
     required this.onProtectionCancelWithoutTarget,
+    required this.onSwapTargetSelected,
+    required this.onSwapActingCardSelected,
+    required this.onSwapTargetCardSelected,
+    required this.onSwapWithoutTarget,
+    required this.onShareCardSelected,
+    required this.onShareWithoutParticipants,
+    required this.onRumorsCardSelected,
+    required this.onRumorsWithoutCards,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -1645,6 +2215,14 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final VoidCallback onFamilyBabyContinue;
   final ValueChanged<OnlineActiveProtection> onProtectionCancelSelected;
   final VoidCallback onProtectionCancelWithoutTarget;
+  final ValueChanged<Player> onSwapTargetSelected;
+  final ValueChanged<GameCard> onSwapActingCardSelected;
+  final ValueChanged<GameCard> onSwapTargetCardSelected;
+  final VoidCallback onSwapWithoutTarget;
+  final ValueChanged<GameCard> onShareCardSelected;
+  final VoidCallback onShareWithoutParticipants;
+  final ValueChanged<GameCard> onRumorsCardSelected;
+  final VoidCallback onRumorsWithoutCards;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -1763,6 +2341,35 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           isResolvingEffect: isResolvingEffect,
           onProtectionSelected: onProtectionCancelSelected,
           onWithoutTarget: onProtectionCancelWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.swap:
+        return _SwapPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onSwapTargetSelected,
+          onActingCardSelected: onSwapActingCardSelected,
+          onTargetCardSelected: onSwapTargetCardSelected,
+          onWithoutTarget: onSwapWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.share:
+        return _SharePendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onCardSelected: onShareCardSelected,
+          onWithoutParticipants: onShareWithoutParticipants,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.rumors:
+        return _RumorsPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onCardSelected: onRumorsCardSelected,
+          onWithoutCards: onRumorsWithoutCards,
           onAcknowledge: onAcknowledge,
         );
     }
@@ -2128,6 +2735,630 @@ class _PublicNoticePendingEffectCardState
     );
   }
 }
+
+class _SwapPendingEffectCard extends StatelessWidget {
+  const _SwapPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onActingCardSelected,
+    required this.onTargetCardSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final ValueChanged<GameCard> onActingCardSelected;
+  final ValueChanged<GameCard> onTargetCardSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      return player.id != actingPlayer.id && player.hand.isNotEmpty;
+    }).toList();
+    final actingPlayerCardWasSelected = effect.revealedCardId != null;
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.swap_horiz, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Trocar',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (actingPlayer.hand.isEmpty) ...[
+              const Text(
+                'Quem jogou Trocar não tem mais cartas na mão. A carta fica sem efeito.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentDeviceIsActingPlayer) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutTarget,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (targetPlayer == null) ...[
+              if (availableTargets.isEmpty) ...[
+                const Text(
+                  'Não há outros jogadores com cartas na mão para trocar.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                if (currentDeviceIsActingPlayer) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: isResolvingEffect ? null : onWithoutTarget,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Continuar'),
+                    ),
+                  ),
+                ],
+              ] else if (currentDeviceIsActingPlayer) ...[
+                Text(
+                  '${actingPlayer.name}, escolha com quem trocar.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...availableTargets.map((target) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(target);
+                            },
+                      icon: const Icon(Icons.person_search),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          '${target.name} (${target.hand.length} carta${target.hand.length == 1 ? '' : 's'})',
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ] else
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher com quem trocar.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
+            ] else if (!actingPlayerCardWasSelected) ...[
+              if (currentDeviceIsActingPlayer) ...[
+                Text(
+                  '${actingPlayer.name}, escolha uma carta da sua mão para trocar com ${targetPlayer.name}.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...actingPlayer.hand.map((card) {
+                  return Card(
+                    color: const Color(0xFF120818),
+                    child: ListTile(
+                      title: Text(
+                        card.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(card.shortText),
+                      trailing: const Icon(Icons.swap_horiz),
+                      onTap: isResolvingEffect
+                          ? null
+                          : () {
+                              onActingCardSelected(card);
+                            },
+                    ),
+                  );
+                }),
+              ] else
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher a própria carta para a troca.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
+            ] else if (effect.secondaryCardId == null) ...[
+              if (currentDeviceIsTarget) ...[
+                Text(
+                  '${targetPlayer.name}, escolha uma carta da sua mão para entregar na troca.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...targetPlayer.hand.map((card) {
+                  return Card(
+                    color: const Color(0xFF120818),
+                    child: ListTile(
+                      title: Text(
+                        card.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(card.shortText),
+                      trailing: const Icon(Icons.swap_horiz),
+                      onTap: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetCardSelected(card);
+                            },
+                    ),
+                  );
+                }),
+              ] else
+                Text(
+                  'Aguardando ${targetPlayer.name} escolher a carta da troca.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SharePendingEffectCard extends StatelessWidget {
+  const _SharePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+    required this.onWithoutParticipants,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutParticipants;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == currentPlayerId,
+      orElse: () => session.gameState.currentPlayer,
+    );
+    final currentPlayerAlreadySelected =
+        effect.completedPlayerIds.contains(currentPlayerId);
+    final currentPlayerIsParticipant =
+        effect.participantPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final selectedCount = effect.completedPlayerIds.length;
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.compare_arrows, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Compartilhar',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...session.gameState.players.map((player) {
+                final receivedCount =
+                    effect.receivedCardCountByPlayerId[player.id] ?? 0;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(player.name)),
+                      Text(
+                        '$receivedCount carta${receivedCount == 1 ? '' : 's'} recebida${receivedCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: receivedCount > 0
+                              ? const Color(0xFFE7C76F)
+                              : Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (effect.participantPlayerIds.isEmpty) ...[
+              const Text(
+                'Nenhum jogador tem cartas disponíveis para Compartilhar.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentPlayerId == actingPlayer.id) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutParticipants,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (currentPlayerIsParticipant &&
+                !currentPlayerAlreadySelected) ...[
+              Text(
+                '${currentPlayer.name}, escolha uma carta da sua mão para passar à esquerda.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+              const SizedBox(height: 12),
+              ...currentPlayer.hand.map((card) {
+                return Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    title: Text(
+                      card.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(card.shortText),
+                    trailing: const Icon(Icons.arrow_forward),
+                    onTap: isResolvingEffect
+                        ? null
+                        : () {
+                            onCardSelected(card);
+                          },
+                  ),
+                );
+              }),
+            ] else ...[
+              Text(
+                currentPlayerAlreadySelected
+                    ? 'Sua carta já foi registrada. Aguardando os demais jogadores.'
+                    : 'Aguardando os jogadores escolherem suas cartas para Compartilhar.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RumorsPendingEffectCard extends StatelessWidget {
+  const _RumorsPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+    required this.onWithoutCards,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutCards;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final currentPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == currentPlayerId,
+      orElse: () => session.gameState.currentPlayer,
+    );
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final sourcePlayer = _playerToRightInGameState(
+      gameState: session.gameState,
+      currentPlayer: currentPlayer,
+    );
+    final currentPlayerAlreadySelected =
+        effect.completedPlayerIds.contains(currentPlayerId);
+    final currentPlayerIsParticipant =
+        effect.participantPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final selectedCount = effect.completedPlayerIds.length;
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.record_voice_over, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Rumores',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...session.gameState.players.map((player) {
+                final receivedCount =
+                    effect.receivedCardCountByPlayerId[player.id] ?? 0;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(player.name)),
+                      Text(
+                        '$receivedCount carta${receivedCount == 1 ? '' : 's'} recebida${receivedCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: receivedCount > 0
+                              ? const Color(0xFFE7C76F)
+                              : Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (effect.participantPlayerIds.isEmpty) ...[
+              const Text(
+                'Ninguém tem cartas disponíveis para Rumores nesta rodada.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentPlayerId == actingPlayer.id) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutCards,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (currentPlayerIsParticipant &&
+                !currentPlayerAlreadySelected) ...[
+              Text(
+                '${currentPlayer.name}, escolha sem olhar uma carta da mão de ${sourcePlayer.name}.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(sourcePlayer.hand.length, (index) {
+                  final card = sourcePlayer.hand[index];
+
+                  return SizedBox(
+                    width: 110,
+                    height: 90,
+                    child: OutlinedButton(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onCardSelected(card);
+                            },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.help_outline),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Carta ${index + 1}',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ] else ...[
+              Text(
+                currentPlayerAlreadySelected
+                    ? 'Sua escolha em Rumores já foi registrada. Aguardando os demais jogadores.'
+                    : 'Aguardando os jogadores concluírem Rumores.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FamilyBabyPendingEffectCard extends StatelessWidget {
   const _FamilyBabyPendingEffectCard({
     required this.session,

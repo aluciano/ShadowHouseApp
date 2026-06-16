@@ -86,6 +86,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _pendingEffectCardKey = GlobalKey();
   String? _lastPendingEffectFocusToken;
+  String? _lastPendingEffectReconcileToken;
 
   @override
   void initState() {
@@ -1557,41 +1558,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return;
       }
 
-      final selectedCardsByPlayerId = <String, GameCard>{};
-
-      for (final playerId in effect.participantPlayerIds) {
-        final player = _playerById(session.gameState, playerId);
-        final selectedCardId = selectedCardIdsByPlayerId[playerId];
-
-        if (selectedCardId == null) {
-          continue;
-        }
-
-        selectedCardsByPlayerId[playerId] = _cardById(
-          player.hand,
-          selectedCardId,
-        );
-      }
-
-      final summary = resolveCircularCardPassEffect(
-        gameState: session.gameState,
-        selectedCardByPlayerId: selectedCardsByPlayerId,
-        passToLeft: true,
-      );
-
-      await _saveCurrentSession(
-        session.copyWith(
-          gameState: session.gameState,
-          pendingEffect: effect.copyWith(
-            completedPlayerIds: completedPlayerIds,
-            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
-            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
-            receivedCardCountByPlayerId: summary,
-            resultMessage:
-                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
-            acknowledgedPlayerIds: const [],
-          ),
-        ),
+      await _finalizeShareEffect(
+        session: session,
+        effect: effect,
+        completedPlayerIds: completedPlayerIds,
+        selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+        selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
       );
     } catch (error) {
       showMessage('Não foi possível concluir Compartilhar: $error');
@@ -1681,47 +1653,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return;
       }
 
-      final selections = <RumorCardSelection>[];
-
-      for (final playerId in effect.participantPlayerIds) {
-        final receiverPlayer = _playerById(session.gameState, playerId);
-        final sourcePlayer = _playerToRightInGameState(
-          gameState: session.gameState,
-          currentPlayer: receiverPlayer,
-        );
-        final selectedCardId = selectedCardIdsByPlayerId[playerId];
-
-        if (selectedCardId == null) {
-          continue;
-        }
-
-        selections.add(
-          RumorCardSelection(
-            receiverPlayerId: receiverPlayer.id,
-            sourcePlayerId: sourcePlayer.id,
-            card: _cardById(sourcePlayer.hand, selectedCardId),
-          ),
-        );
-      }
-
-      final summary = resolveRumorsEffect(
-        gameState: session.gameState,
-        selections: selections,
-      );
-
-      await _saveCurrentSession(
-        session.copyWith(
-          gameState: session.gameState,
-          pendingEffect: effect.copyWith(
-            completedPlayerIds: completedPlayerIds,
-            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
-            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
-            receivedCardCountByPlayerId: summary,
-            resultMessage:
-                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
-            acknowledgedPlayerIds: const [],
-          ),
-        ),
+      await _finalizeRumorsEffect(
+        session: session,
+        effect: effect,
+        completedPlayerIds: completedPlayerIds,
+        selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+        selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
       );
     } catch (error) {
       showMessage('Não foi possível concluir Rumores: $error');
@@ -1766,22 +1703,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return;
       }
 
-      final summary = resolveRumorsEffect(
-        gameState: session.gameState,
-        selections: const [],
-      );
-
-      await _saveCurrentSession(
-        session.copyWith(
-          gameState: session.gameState,
-          pendingEffect: effect.copyWith(
-            completedPlayerIds: completedPlayerIds,
-            receivedCardCountByPlayerId: summary,
-            resultMessage:
-                'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
-            acknowledgedPlayerIds: const [],
-          ),
-        ),
+      await _finalizeRumorsEffect(
+        session: session,
+        effect: effect,
+        completedPlayerIds: completedPlayerIds,
+        selectedCardIdsByPlayerId: effect.selectedCardIdsByPlayerId,
+        selectedCardNamesByPlayerId: effect.selectedCardNamesByPlayerId,
       );
     } catch (error) {
       showMessage('Não foi possível continuar Rumores: $error');
@@ -1840,28 +1767,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return;
       }
 
-      final previewCards = previewFrenzyCards(
-        cards: effect.participantPlayerIds.map((playerId) {
-          final player = _playerById(session.gameState, playerId);
-          final selectedCardId = selectedCardIdsByPlayerId[playerId];
-
-          if (selectedCardId == null) {
-            throw StateError('Carta do Frenesi não encontrada para $playerId.');
-          }
-
-          return _cardById(player.hand, selectedCardId);
-        }),
-      );
-
-      await _saveCurrentSession(
-        session.copyWith(
-          pendingEffect: effect.copyWith(
-            completedPlayerIds: completedPlayerIds,
-            selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
-            selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
-            previewCardNames: previewCards.map((card) => card.name).toList(),
-          ),
-        ),
+      await _prepareFrenzyPreview(
+        session: session,
+        effect: effect,
+        completedPlayerIds: completedPlayerIds,
+        selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+        selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
       );
     } catch (error) {
       showMessage('Não foi possível concluir Frenesi!!!: $error');
@@ -1931,6 +1842,134 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         });
       }
     }
+  }
+
+  Future<void> _finalizeShareEffect({
+    required OnlineGameSession session,
+    required OnlinePendingEffect effect,
+    required List<String> completedPlayerIds,
+    required Map<String, String> selectedCardIdsByPlayerId,
+    required Map<String, String> selectedCardNamesByPlayerId,
+  }) async {
+    final selectedCardsByPlayerId = <String, GameCard>{};
+
+    for (final playerId in effect.participantPlayerIds) {
+      final player = _playerById(session.gameState, playerId);
+      final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+      if (selectedCardId == null) {
+        continue;
+      }
+
+      selectedCardsByPlayerId[playerId] = _cardById(
+        player.hand,
+        selectedCardId,
+      );
+    }
+
+    final summary = resolveCircularCardPassEffect(
+      gameState: session.gameState,
+      selectedCardByPlayerId: selectedCardsByPlayerId,
+      passToLeft: true,
+    );
+
+    await _saveCurrentSession(
+      session.copyWith(
+        gameState: session.gameState,
+        pendingEffect: effect.copyWith(
+          completedPlayerIds: completedPlayerIds,
+          selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+          selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+          receivedCardCountByPlayerId: summary,
+          resultMessage:
+              'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
+          acknowledgedPlayerIds: const [],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _finalizeRumorsEffect({
+    required OnlineGameSession session,
+    required OnlinePendingEffect effect,
+    required List<String> completedPlayerIds,
+    required Map<String, String> selectedCardIdsByPlayerId,
+    required Map<String, String> selectedCardNamesByPlayerId,
+  }) async {
+    final selections = <RumorCardSelection>[];
+
+    for (final playerId in effect.participantPlayerIds) {
+      final receiverPlayer = _playerById(session.gameState, playerId);
+      final sourcePlayer = _playerToRightInGameState(
+        gameState: session.gameState,
+        currentPlayer: receiverPlayer,
+      );
+      final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+      if (selectedCardId == null) {
+        continue;
+      }
+
+      selections.add(
+        RumorCardSelection(
+          receiverPlayerId: receiverPlayer.id,
+          sourcePlayerId: sourcePlayer.id,
+          card: _cardById(sourcePlayer.hand, selectedCardId),
+        ),
+      );
+    }
+
+    final summary = resolveRumorsEffect(
+      gameState: session.gameState,
+      selections: selections,
+    );
+
+    await _saveCurrentSession(
+      session.copyWith(
+        gameState: session.gameState,
+        pendingEffect: effect.copyWith(
+          completedPlayerIds: completedPlayerIds,
+          selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+          selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+          receivedCardCountByPlayerId: summary,
+          resultMessage:
+              'Cada jogador recebeu, quando possível, uma carta do jogador à direita.',
+          acknowledgedPlayerIds: const [],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _prepareFrenzyPreview({
+    required OnlineGameSession session,
+    required OnlinePendingEffect effect,
+    required List<String> completedPlayerIds,
+    required Map<String, String> selectedCardIdsByPlayerId,
+    required Map<String, String> selectedCardNamesByPlayerId,
+  }) async {
+    final previewCards = previewFrenzyCards(
+      cards: effect.participantPlayerIds.map((playerId) {
+        final player = _playerById(session.gameState, playerId);
+        final selectedCardId = selectedCardIdsByPlayerId[playerId];
+
+        if (selectedCardId == null) {
+          throw StateError('Carta do Frenesi não encontrada para $playerId.');
+        }
+
+        return _cardById(player.hand, selectedCardId);
+      }),
+    );
+
+    await _saveCurrentSession(
+      session.copyWith(
+        pendingEffect: effect.copyWith(
+          completedPlayerIds: completedPlayerIds,
+          selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
+          selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
+          previewCardNames: previewCards.map((card) => card.name).toList(),
+        ),
+      ),
+    );
   }
 
   Future<void> skipFrenzyWithoutParticipants(OnlineGameSession session) async {
@@ -2514,6 +2553,148 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
   }
 
+  String? _pendingEffectReconcileToken(OnlineGameSession session) {
+    final effect = session.pendingEffect;
+
+    if (effect == null) {
+      return null;
+    }
+
+    final currentDeviceIsHost =
+        widget.currentPlayerId == session.room.hostPlayerId;
+
+    if (!currentDeviceIsHost || isResolvingEffect) {
+      return null;
+    }
+
+    final everyoneCompleted = effect.participantPlayerIds.isNotEmpty &&
+        effect.participantPlayerIds.every(effect.completedPlayerIds.contains);
+    final needsShareReconcile =
+        effect.type == OnlineEffectType.share &&
+        effect.resultMessage == null &&
+        everyoneCompleted;
+    final needsRumorsReconcile =
+        effect.type == OnlineEffectType.rumors &&
+        effect.resultMessage == null &&
+        everyoneCompleted;
+    final needsFrenzyReconcile =
+        effect.type == OnlineEffectType.frenzy &&
+        effect.resultMessage == null &&
+        effect.previewCardNames.isEmpty &&
+        everyoneCompleted;
+    final needsSkipBecauseNoParticipants =
+        (effect.type == OnlineEffectType.share ||
+            effect.type == OnlineEffectType.frenzy) &&
+        effect.resultMessage == null &&
+        effect.participantPlayerIds.isEmpty;
+
+    if (!needsShareReconcile &&
+        !needsRumorsReconcile &&
+        !needsFrenzyReconcile &&
+        !needsSkipBecauseNoParticipants) {
+      return null;
+    }
+
+    return [
+      effect.type.name,
+      effect.participantPlayerIds.join(','),
+      effect.completedPlayerIds.join(','),
+      effect.selectedCardIdsByPlayerId.length,
+      effect.previewCardNames.length,
+      effect.resultMessage ?? '',
+    ].join('|');
+  }
+
+  void _schedulePendingEffectReconciliation(OnlineGameSession session) {
+    final token = _pendingEffectReconcileToken(session);
+
+    if (token == null) {
+      _lastPendingEffectReconcileToken = null;
+      return;
+    }
+
+    if (_lastPendingEffectReconcileToken == token) {
+      return;
+    }
+
+    _lastPendingEffectReconcileToken = token;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || isResolvingEffect || session.pendingEffect == null) {
+        return;
+      }
+
+      final effect = session.pendingEffect!;
+
+      setState(() {
+        isResolvingEffect = true;
+      });
+
+      try {
+        if ((effect.type == OnlineEffectType.share ||
+                effect.type == OnlineEffectType.frenzy) &&
+            effect.participantPlayerIds.isEmpty &&
+            effect.resultMessage == null) {
+          session.gameState.moveToNextPlayer();
+          await _saveCurrentSession(
+            session.copyWith(
+              gameState: session.gameState,
+              clearPendingEffect: true,
+            ),
+          );
+          return;
+        }
+
+        if (effect.type == OnlineEffectType.share &&
+            effect.resultMessage == null &&
+            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+          await _finalizeShareEffect(
+            session: session,
+            effect: effect,
+            completedPlayerIds: effect.completedPlayerIds,
+            selectedCardIdsByPlayerId: effect.selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: effect.selectedCardNamesByPlayerId,
+          );
+          return;
+        }
+
+        if (effect.type == OnlineEffectType.rumors &&
+            effect.resultMessage == null &&
+            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+          await _finalizeRumorsEffect(
+            session: session,
+            effect: effect,
+            completedPlayerIds: effect.completedPlayerIds,
+            selectedCardIdsByPlayerId: effect.selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: effect.selectedCardNamesByPlayerId,
+          );
+          return;
+        }
+
+        if (effect.type == OnlineEffectType.frenzy &&
+            effect.resultMessage == null &&
+            effect.previewCardNames.isEmpty &&
+            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+          await _prepareFrenzyPreview(
+            session: session,
+            effect: effect,
+            completedPlayerIds: effect.completedPlayerIds,
+            selectedCardIdsByPlayerId: effect.selectedCardIdsByPlayerId,
+            selectedCardNamesByPlayerId: effect.selectedCardNamesByPlayerId,
+          );
+        }
+      } catch (error) {
+        showMessage('Não foi possível recompor o efeito coletivo: $error');
+      } finally {
+        if (mounted) {
+          setState(() {
+            isResolvingEffect = false;
+          });
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -2592,6 +2773,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                   roomPlayer.id == session.room.hostPlayerId;
 
               _schedulePendingEffectFocus(session.pendingEffect);
+              _schedulePendingEffectReconciliation(session);
 
               if (gameState.roundFinished && !hasPendingEffect) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {

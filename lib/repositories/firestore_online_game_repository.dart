@@ -596,10 +596,16 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       return null;
     }
 
+    final isCollectiveSelectionEffect =
+        effect.type == OnlineEffectType.share ||
+            effect.type == OnlineEffectType.rumors ||
+            effect.type == OnlineEffectType.frenzy;
+
     if (effect.resultMessage == null &&
         (effect.targetPlayerId == removedPlayerId ||
             effect.secondaryCardId == removedPlayerId ||
-            effect.participantPlayerIds.contains(removedPlayerId))) {
+            (!isCollectiveSelectionEffect &&
+                effect.participantPlayerIds.contains(removedPlayerId)))) {
       return null;
     }
 
@@ -632,6 +638,12 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         (entry) => entry.key != removedPlayerId,
       ),
     );
+
+    if (isCollectiveSelectionEffect &&
+        effect.resultMessage == null &&
+        participantPlayerIds.isEmpty) {
+      return null;
+    }
 
     return effect.copyWith(
       targetPlayerId: effect.targetPlayerId == removedPlayerId

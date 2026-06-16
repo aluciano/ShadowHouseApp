@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/online_game_session.dart';
+import '../models/online_player.dart';
 import '../models/player.dart';
 import '../models/round_result_type.dart';
 import '../repositories/local_online_membership_store.dart';
@@ -171,6 +172,17 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
 
     await RepositoryRegistry.onlineGame.saveCurrentSession(
       session.copyWith(rematchProposalPlayerIds: proposals),
+    );
+  }
+
+  Future<void> removeDisconnectedPlayer({
+    required OnlineGameSession session,
+    required String removedPlayerId,
+  }) async {
+    await RepositoryRegistry.onlineGame.removePlayer(
+      roomId: session.room.id,
+      actingPlayerId: widget.currentPlayerId,
+      removedPlayerId: removedPlayerId,
     );
   }
 
@@ -374,8 +386,15 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                   if (disconnectedPlayers.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _RoundDisconnectedPlayersCard(
-                      playerNames:
-                          disconnectedPlayers.map((player) => player.name).toList(),
+                      players: disconnectedPlayers,
+                      currentDeviceIsHost:
+                          currentRoomPlayer.first.id == session.room.hostPlayerId,
+                      onRemovePlayer: (playerId) {
+                        removeDisconnectedPlayer(
+                          session: session,
+                          removedPlayerId: playerId,
+                        );
+                      },
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -643,10 +662,14 @@ class _RoundRoomSystemMessageCard extends StatelessWidget {
 
 class _RoundDisconnectedPlayersCard extends StatelessWidget {
   const _RoundDisconnectedPlayersCard({
-    required this.playerNames,
+    required this.players,
+    required this.currentDeviceIsHost,
+    required this.onRemovePlayer,
   });
 
-  final List<String> playerNames;
+  final List<OnlinePlayer> players;
+  final bool currentDeviceIsHost;
+  final ValueChanged<String> onRemovePlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -654,16 +677,42 @@ class _RoundDisconnectedPlayersCard extends StatelessWidget {
       color: const Color(0xFF120818),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.wifi_off, color: Color(0xFFE7C76F)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Desconectados: ${playerNames.join(', ')}',
-                style: const TextStyle(color: Colors.white70),
-              ),
+            Row(
+              children: [
+                const Icon(Icons.wifi_off, color: Color(0xFFE7C76F)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    players.length == 1
+                        ? 'Desconectado: ${players.first.name}'
+                        : 'Desconectados: ${players.map((player) => player.name).join(', ')}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ],
             ),
+            if (currentDeviceIsHost) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'O anfitrião pode remover jogadores desconectados para destravar a continuação.',
+                style: TextStyle(color: Colors.white60),
+              ),
+              ...players.map((player) {
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      onRemovePlayer(player.id);
+                    },
+                    icon: const Icon(Icons.person_remove),
+                    label: Text('Remover ${player.name}'),
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),

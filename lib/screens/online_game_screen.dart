@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../engine/game_engine.dart';
 import '../models/game_card.dart';
@@ -11,6 +11,31 @@ import '../models/player.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import 'online_round_result_screen.dart';
+
+OnlineActiveProtection? _blockingProtectionForPlayer({
+  required OnlineGameSession session,
+  required Player player,
+  required OnlineEffectType effectType,
+}) {
+  for (final protection in session.activeProtections) {
+    if (protection.playerId != player.id) {
+      continue;
+    }
+
+    if (protection.cardTemplateId == 'criada' &&
+        effectType == OnlineEffectType.detective) {
+      return protection;
+    }
+
+    if (protection.cardTemplateId == 'governanta' &&
+        (effectType == OnlineEffectType.toto ||
+            effectType == OnlineEffectType.handcuffs)) {
+      return protection;
+    }
+  }
+
+  return null;
+}
 
 class OnlineGameScreen extends StatefulWidget {
   const OnlineGameScreen({
@@ -37,6 +62,83 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       (player) => player.id == widget.currentPlayerId,
       orElse: () => gameState.currentPlayer,
     );
+  }
+
+  Future<void> _saveCurrentSession(
+    OnlineGameSession session, {
+    bool clearExpiredProtections = true,
+  }) async {
+    final updatedSession = clearExpiredProtections
+        ? session.copyWith(
+            activeProtections: _clearExpiredProtections(session),
+          )
+        : session;
+
+    await RepositoryRegistry.onlineGame.saveCurrentSession(updatedSession);
+  }
+
+  List<OnlineActiveProtection> _clearExpiredProtections(
+    OnlineGameSession session,
+  ) {
+    final currentPlayerId = session.gameState.currentPlayer.id;
+
+    return session.activeProtections.where((protection) {
+      return protection.playerId.isNotEmpty &&
+          protection.playerId != currentPlayerId;
+    }).toList();
+  }
+
+  List<OnlineActiveProtection> _activeProtectionsAfterCard({
+    required OnlineGameSession session,
+    required GameState gameState,
+    required Player player,
+    required GameCard card,
+  }) {
+    final updatedSession = session.copyWith(gameState: gameState);
+    final protections = _clearExpiredProtections(updatedSession);
+    final newProtection = _protectionForCard(
+      player: player,
+      card: card,
+    );
+
+    if (newProtection == null) {
+      return protections;
+    }
+
+    return [
+      ...protections.where((protection) {
+        return protection.playerId != newProtection.playerId ||
+            protection.cardTemplateId != newProtection.cardTemplateId;
+      }),
+      newProtection,
+    ];
+  }
+
+  OnlineActiveProtection? _protectionForCard({
+    required Player player,
+    required GameCard card,
+  }) {
+    if (card.templateId == 'criada') {
+      return OnlineActiveProtection(
+        playerId: player.id,
+        cardTemplateId: card.templateId,
+        cardName: card.name,
+        description:
+            'O Detetive não pode questionar ${player.name} até a próxima vez de ${player.name}.',
+      );
+    }
+
+    if (card.templateId == 'governanta') {
+      return OnlineActiveProtection(
+        playerId: player.id,
+        cardTemplateId: card.templateId,
+        cardName: card.name,
+        description:
+            'Totó e Xerife não podem escolher ${player.name} até a próxima vez de ${player.name}.',
+      );
+    }
+
+    return null;
   }
 
   Future<void> playOnlineCard({
@@ -115,12 +217,20 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
           card.templateId == 'chave_enferrujada';
       final isAccompliceCard = card.templateId == 'cumplice';
       final isPoisonedCupCard = card.templateId == 'taca_envenenada';
+      final isProtectionCancelCard = card.templateId == 'palavra_final';
+      final createsPendingEffect =
+          _pendingEffectForCard(
+            card: card,
+            actingPlayerId: player.id,
+          ) != null;
       final hasPendingResolution =
           isDetectiveCard ||
           isTotoCard ||
           isHandcuffsCard ||
           isAccompliceCard ||
-          isPoisonedCupCard;
+          isPoisonedCupCard ||
+          isProtectionCancelCard ||
+          createsPendingEffect;
 
       playCard(
         gameState: gameState,
@@ -138,11 +248,18 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         actingPlayerId: player.id,
       );
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: gameState,
           pendingEffect: pendingEffect,
+          activeProtections: _activeProtectionsAfterCard(
+            session: session,
+            gameState: gameState,
+            player: player,
+            card: card,
+          ),
         ),
+        clearExpiredProtections: true,
       );
 
       if (_cardNeedsOnlineResolution(card)) {
@@ -215,6 +332,38 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       );
     }
 
+    if (card.templateId == 'testemunha') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.witness,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'bebe_da_familia') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.familyBaby,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'adivinho') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.publicNotice,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'palavra_final') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.protectionCancel,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
     return null;
   }
 
@@ -243,7 +392,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         targetPlayer: target,
       );
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           pendingEffect: effect.copyWith(
@@ -279,7 +428,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     });
 
     try {
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           pendingEffect: effect.copyWith(
             targetPlayerId: target.id,
@@ -312,7 +461,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     try {
       session.gameState.moveToNextPlayer();
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           clearPendingEffect: true,
@@ -360,7 +509,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         revealedCard: revealedCard,
       );
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           pendingEffect: effect.copyWith(
@@ -411,7 +560,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         targetPlayer: target,
       );
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           pendingEffect: effect.copyWith(
@@ -447,7 +596,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     try {
       session.gameState.moveToNextPlayer();
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           clearPendingEffect: true,
@@ -479,7 +628,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     });
 
     try {
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           pendingEffect: effect.copyWith(
             targetPlayerId: target.id,
@@ -536,7 +685,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         effectName: effect.cardName,
       );
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           pendingEffect: effect.copyWith(
@@ -578,7 +727,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     try {
       session.gameState.moveToNextPlayer();
 
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      await _saveCurrentSession(
         session.copyWith(
           gameState: session.gameState,
           clearPendingEffect: true,
@@ -586,6 +735,363 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       );
     } catch (error) {
       showMessage('Não foi possível encerrar o efeito: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectWitnessTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher o alvo da Testemunha: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finishWitnessWithoutExchange(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || effect.targetPlayerId == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final witnessPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId!,
+      );
+
+      resolveWitnessWithoutExchange(gameState: session.gameState);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            resultMessage:
+                '${witnessPlayer.name} investigou ${targetPlayer.name} e não fez troca.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver a Testemunha: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> selectWitnessCardForExchange({
+    required OnlineGameSession session,
+    required GameCard witnessCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            revealedCardId: witnessCard.id,
+            revealedCardName: witnessCard.name,
+            revealedCardTemplateId: witnessCard.templateId,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher a carta da Testemunha: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveWitnessExchangeCard({
+    required OnlineGameSession session,
+    required GameCard targetCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null ||
+        effect.targetPlayerId == null ||
+        effect.revealedCardId == null ||
+        isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final witnessPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId!,
+      );
+      final witnessCard = _cardById(witnessPlayer.hand, effect.revealedCardId!);
+
+      resolveWitnessExchange(
+        gameState: session.gameState,
+        witnessPlayer: witnessPlayer,
+        witnessCard: witnessCard,
+        targetPlayer: targetPlayer,
+        targetCard: targetCard,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            secondaryCardId: targetCard.id,
+            secondaryCardName: targetCard.name,
+            secondaryCardTemplateId: targetCard.templateId,
+            resultMessage:
+                '${witnessPlayer.name} e ${targetPlayer.name} trocaram cartas pela Testemunha.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir a troca da Testemunha: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipWitnessWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar a Testemunha: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> revealFamilyBaby(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final guiltyPlayer = findGuiltyPlayer(session.gameState);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: guiltyPlayer.id,
+            resultMessage: 'O Culpado está com ${guiltyPlayer.name}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível revelar o Bebê da Família: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finishFamilyBaby(OnlineGameSession session) async {
+    if (isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      resolveFamilyBabyEffect(gameState: session.gameState);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar o Bebê da Família: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveProtectionCancelTarget({
+    required OnlineGameSession session,
+    required OnlineActiveProtection protection,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        protection.playerId,
+      );
+      final activeProtections = session.activeProtections.where((item) {
+        return item.playerId != protection.playerId ||
+            item.cardTemplateId != protection.cardTemplateId;
+      }).toList();
+
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          activeProtections: activeProtections,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: targetPlayer.id,
+            revealedCardName: protection.cardName,
+            revealedCardTemplateId: protection.cardTemplateId,
+            resultMessage:
+                '${actingPlayer.name} desativou ${protection.cardName} de ${targetPlayer.name}.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+        clearExpiredProtections: true,
+      );
+    } catch (error) {
+      showMessage('Não foi possível desativar a proteção: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipProtectionCancelWithoutTarget(
+    OnlineGameSession session,
+  ) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+        clearExpiredProtections: true,
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar a Palavra Final: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -624,6 +1130,56 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return 'A carta não era o Culpado. Ela volta para a mão de ${targetPlayer.name}.';
   }
 
+  Future<void> submitPublicNoticeMessage({
+    required OnlineGameSession session,
+    required String message,
+    bool allowEmptyMessage = false,
+  }) async {
+    final effect = session.pendingEffect;
+    final trimmedMessage = message.trim();
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    if (trimmedMessage.isEmpty && !allowEmptyMessage) {
+      showMessage('Escreva a mensagem que será compartilhada com todos.');
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+
+      final resultMessage = trimmedMessage.isEmpty
+          ? '${actingPlayer.name} decidiu não compartilhar impressões com a mesa.'
+          : '${actingPlayer.name} compartilhou: "$trimmedMessage"';
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            resultMessage: resultMessage,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível compartilhar a mensagem: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   Future<void> acknowledgePendingEffect(OnlineGameSession session) async {
     final effect = session.pendingEffect;
 
@@ -644,7 +1200,11 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     });
 
     try {
-      await RepositoryRegistry.onlineGame.saveCurrentSession(
+      if (everyoneAcknowledged && effect.type == OnlineEffectType.publicNotice) {
+        session.gameState.moveToNextPlayer();
+      }
+
+      await _saveCurrentSession(
         everyoneAcknowledged
             ? session.copyWith(clearPendingEffect: true)
             : session.copyWith(
@@ -732,7 +1292,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
   bool _cardNeedsOnlineResolution(GameCard card) {
     return {
-      'bebe_da_familia',
       'testemunha',
       'trocar',
       'compartilhar',
@@ -742,6 +1301,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
   Player _playerById(GameState gameState, String playerId) {
     return gameState.players.firstWhere((player) => player.id == playerId);
+  }
+
+  GameCard _cardById(List<GameCard> cards, String cardId) {
+    return cards.firstWhere((card) => card.id == cardId);
   }
 
   List<String> _expectedViewerIds(OnlineGameSession session) {
@@ -891,6 +1454,58 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onPoisonedCupWithoutTarget: () {
                         skipForcedDiscardWithoutTarget(session);
                       },
+                      onWitnessTargetSelected: (target) {
+                        selectWitnessTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onWitnessContinueWithoutExchange: () {
+                        finishWitnessWithoutExchange(session);
+                      },
+                      onWitnessCardSelected: (card) {
+                        selectWitnessCardForExchange(
+                          session: session,
+                          witnessCard: card,
+                        );
+                      },
+                      onWitnessExchangeCardSelected: (card) {
+                        resolveWitnessExchangeCard(
+                          session: session,
+                          targetCard: card,
+                        );
+                      },
+                      onWitnessWithoutTarget: () {
+                        skipWitnessWithoutTarget(session);
+                      },
+                      onFamilyBabyReveal: () {
+                        revealFamilyBaby(session);
+                      },
+                      onFamilyBabyContinue: () {
+                        finishFamilyBaby(session);
+                      },
+                      onProtectionCancelSelected: (protection) {
+                        resolveProtectionCancelTarget(
+                          session: session,
+                          protection: protection,
+                        );
+                      },
+                      onProtectionCancelWithoutTarget: () {
+                        skipProtectionCancelWithoutTarget(session);
+                      },
+                      onPublicNoticeSubmitted: (message) {
+                        submitPublicNoticeMessage(
+                          session: session,
+                          message: message,
+                        );
+                      },
+                      onPublicNoticeSkipped: () {
+                        submitPublicNoticeMessage(
+                          session: session,
+                          message: '',
+                          allowEmptyMessage: true,
+                        );
+                      },
                       onAcknowledge: () {
                         acknowledgePendingEffect(session);
                       },
@@ -963,6 +1578,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                   _OnlineTableCard(
                     gameState: gameState,
                     currentPlayer: currentPlayer,
+                    activeProtections: session.activeProtections,
                   ),
                 ],
               );
@@ -991,6 +1607,17 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onPoisonedCupTargetSelected,
     required this.onPoisonedCupCardSelected,
     required this.onPoisonedCupWithoutTarget,
+    required this.onWitnessTargetSelected,
+    required this.onWitnessContinueWithoutExchange,
+    required this.onWitnessCardSelected,
+    required this.onWitnessExchangeCardSelected,
+    required this.onWitnessWithoutTarget,
+    required this.onFamilyBabyReveal,
+    required this.onFamilyBabyContinue,
+    required this.onProtectionCancelSelected,
+    required this.onProtectionCancelWithoutTarget,
+    required this.onPublicNoticeSubmitted,
+    required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
   });
 
@@ -1009,6 +1636,17 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final ValueChanged<Player> onPoisonedCupTargetSelected;
   final ValueChanged<GameCard> onPoisonedCupCardSelected;
   final VoidCallback onPoisonedCupWithoutTarget;
+  final ValueChanged<Player> onWitnessTargetSelected;
+  final VoidCallback onWitnessContinueWithoutExchange;
+  final ValueChanged<GameCard> onWitnessCardSelected;
+  final ValueChanged<GameCard> onWitnessExchangeCardSelected;
+  final VoidCallback onWitnessWithoutTarget;
+  final VoidCallback onFamilyBabyReveal;
+  final VoidCallback onFamilyBabyContinue;
+  final ValueChanged<OnlineActiveProtection> onProtectionCancelSelected;
+  final VoidCallback onProtectionCancelWithoutTarget;
+  final ValueChanged<String> onPublicNoticeSubmitted;
+  final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
 
   @override
@@ -1089,7 +1727,961 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onWithoutTarget: onPoisonedCupWithoutTarget,
           onAcknowledge: onAcknowledge,
         );
+      case OnlineEffectType.witness:
+        return _WitnessPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onWitnessTargetSelected,
+          onContinueWithoutExchange: onWitnessContinueWithoutExchange,
+          onWitnessCardSelected: onWitnessCardSelected,
+          onTargetCardSelected: onWitnessExchangeCardSelected,
+          onWithoutTarget: onWitnessWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.familyBaby:
+        return _FamilyBabyPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onReveal: onFamilyBabyReveal,
+          onContinue: onFamilyBabyContinue,
+        );
+      case OnlineEffectType.publicNotice:
+        return _PublicNoticePendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onSubmit: onPublicNoticeSubmitted,
+          onSkip: onPublicNoticeSkipped,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.protectionCancel:
+        return _ProtectionCancelPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onProtectionSelected: onProtectionCancelSelected,
+          onWithoutTarget: onProtectionCancelWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
     }
+  }
+}
+
+class _ProtectionCancelPendingEffectCard extends StatelessWidget {
+  const _ProtectionCancelPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onProtectionSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<OnlineActiveProtection> onProtectionSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.gavel, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'A Palavra Final',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Carta jogada: ${effect.cardName}',
+              style: const TextStyle(
+                color: Color(0xFFE7C76F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (!effectWasResolved)
+              _ProtectionCancelTargetStep(
+                session: session,
+                actingPlayer: actingPlayer,
+                currentDeviceIsActingPlayer: currentDeviceIsActingPlayer,
+                isResolvingEffect: isResolvingEffect,
+                onProtectionSelected: onProtectionSelected,
+                onWithoutTarget: onWithoutTarget,
+              )
+            else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProtectionCancelTargetStep extends StatelessWidget {
+  const _ProtectionCancelTargetStep({
+    required this.session,
+    required this.actingPlayer,
+    required this.currentDeviceIsActingPlayer,
+    required this.isResolvingEffect,
+    required this.onProtectionSelected,
+    required this.onWithoutTarget,
+  });
+
+  final OnlineGameSession session;
+  final Player actingPlayer;
+  final bool currentDeviceIsActingPlayer;
+  final bool isResolvingEffect;
+  final ValueChanged<OnlineActiveProtection> onProtectionSelected;
+  final VoidCallback onWithoutTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    if (session.activeProtections.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Não há proteções ativas para desativar.',
+            style: TextStyle(color: Colors.white60),
+          ),
+          if (currentDeviceIsActingPlayer) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: isResolvingEffect ? null : onWithoutTarget,
+              icon: const Icon(Icons.skip_next),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Continuar'),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (!currentDeviceIsActingPlayer) {
+      return Text(
+        'Aguardando ${actingPlayer.name} escolher qual proteção será desativada.',
+        style: const TextStyle(color: Colors.white60),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${actingPlayer.name}, escolha uma proteção ativa para desativar.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        ...session.activeProtections.map((protection) {
+          final targetPlayer = session.gameState.players.firstWhere(
+            (player) => player.id == protection.playerId,
+          );
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OutlinedButton.icon(
+              onPressed: isResolvingEffect
+                  ? null
+                  : () {
+                      onProtectionSelected(protection);
+                    },
+              icon: const Icon(Icons.shield),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  '${targetPlayer.name} - ${protection.cardName}',
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _PublicNoticePendingEffectCard extends StatefulWidget {
+  const _PublicNoticePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onSubmit,
+    required this.onSkip,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onSkip;
+  final VoidCallback onAcknowledge;
+
+  @override
+  State<_PublicNoticePendingEffectCard> createState() =>
+      _PublicNoticePendingEffectCardState();
+}
+
+class _PublicNoticePendingEffectCardState
+    extends State<_PublicNoticePendingEffectCard> {
+  final TextEditingController messageController = TextEditingController();
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer =
+        widget.currentPlayerId == actingPlayer.id;
+    final messageWasSubmitted = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(widget.currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.campaign, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Informação pública',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!messageWasSubmitted) ...[
+              if (!currentDeviceIsActingPlayer)
+                Text(
+                  'Aguardando ${actingPlayer.name} escrever a mensagem do Adivinho.',
+                  style: const TextStyle(color: Colors.white60),
+                )
+              else ...[
+                const Text(
+                  'Escreva a mensagem que será compartilhada com todos.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: messageController,
+                  enabled: !widget.isResolvingEffect,
+                  minLines: 3,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    labelText: 'Mensagem para a mesa',
+                    hintText: 'Ex.: Vi algo suspeito na mão da Luísa...',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: widget.isResolvingEffect
+                      ? null
+                      : () {
+                          widget.onSubmit(messageController.text);
+                        },
+                  icon: const Icon(Icons.send),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Compartilhar mensagem'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: widget.isResolvingEffect ? null : widget.onSkip,
+                  icon: const Icon(Icons.visibility_off),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Não compartilhar impressões'),
+                  ),
+                ),
+              ],
+            ] else ...[
+              Text(
+                effect.resultMessage!,
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || widget.isResolvingEffect
+                    ? null
+                    : widget.onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+class _FamilyBabyPendingEffectCard extends StatelessWidget {
+  const _FamilyBabyPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onReveal,
+    required this.onContinue,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final VoidCallback onReveal;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final culpritWasRevealed = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.child_care, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'O Bebê da Família',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!currentDeviceIsActingPlayer)
+              Text(
+                'Somente ${actingPlayer.name} deve visualizar esta informação.',
+                style: const TextStyle(color: Colors.white60),
+              )
+            else if (!culpritWasRevealed) ...[
+              const Text(
+                'O app vai revelar secretamente quem está com o Culpado.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onReveal,
+                icon: const Icon(Icons.visibility),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Revelar Culpado'),
+                ),
+              ),
+            ] else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  color: Color(0xFFE7C76F),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Guarde essa informação em segredo.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onContinue,
+                icon: const Icon(Icons.check_circle),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Continuar'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WitnessPendingEffectCard extends StatelessWidget {
+  const _WitnessPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onContinueWithoutExchange,
+    required this.onWitnessCardSelected,
+    required this.onTargetCardSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onContinueWithoutExchange;
+  final ValueChanged<GameCard> onWitnessCardSelected;
+  final ValueChanged<GameCard> onTargetCardSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final witnessPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsWitness = currentPlayerId == witnessPlayer.id;
+    final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      return player.id != witnessPlayer.id && player.hand.isNotEmpty;
+    }).toList();
+    final targetWasSelected = targetPlayer != null;
+    final witnessCardWasSelected = effect.revealedCardId != null;
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.visibility, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Efeito da Testemunha',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!targetWasSelected)
+              _WitnessTargetStep(
+                witnessPlayer: witnessPlayer,
+                availableTargets: availableTargets,
+                currentDeviceIsWitness: currentDeviceIsWitness,
+                isResolvingEffect: isResolvingEffect,
+                onTargetSelected: onTargetSelected,
+                onWithoutTarget: onWithoutTarget,
+              )
+            else if (!effectWasResolved && !witnessCardWasSelected)
+              _WitnessInspectStep(
+                witnessPlayer: witnessPlayer,
+                targetPlayer: targetPlayer,
+                currentDeviceIsWitness: currentDeviceIsWitness,
+                isResolvingEffect: isResolvingEffect,
+                onContinueWithoutExchange: onContinueWithoutExchange,
+                onWitnessCardSelected: onWitnessCardSelected,
+              )
+            else if (!effectWasResolved)
+              _WitnessTargetExchangeStep(
+                witnessCardName: effect.revealedCardName!,
+                targetPlayer: targetPlayer,
+                currentDeviceIsTarget: currentDeviceIsTarget,
+                isResolvingEffect: isResolvingEffect,
+                onTargetCardSelected: onTargetCardSelected,
+              )
+            else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _WitnessTargetStep extends StatelessWidget {
+  const _WitnessTargetStep({
+    required this.witnessPlayer,
+    required this.availableTargets,
+    required this.currentDeviceIsWitness,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+  });
+
+  final Player witnessPlayer;
+  final List<Player> availableTargets;
+  final bool currentDeviceIsWitness;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    if (availableTargets.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Não há outros jogadores com cartas na mão para investigar.',
+            style: TextStyle(color: Colors.white60),
+          ),
+          if (currentDeviceIsWitness) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: isResolvingEffect ? null : onWithoutTarget,
+              icon: const Icon(Icons.skip_next),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Continuar'),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (!currentDeviceIsWitness) {
+      return Text(
+        'Aguardando ${witnessPlayer.name} escolher quem vai investigar.',
+        style: const TextStyle(color: Colors.white60),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${witnessPlayer.name}, escolha quem investigar.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        ...availableTargets.map((target) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OutlinedButton.icon(
+              onPressed: isResolvingEffect
+                  ? null
+                  : () {
+                      onTargetSelected(target);
+                    },
+              icon: const Icon(Icons.visibility),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'Investigar ${target.name} (${target.hand.length} carta${target.hand.length == 1 ? '' : 's'})',
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _WitnessInspectStep extends StatelessWidget {
+  const _WitnessInspectStep({
+    required this.witnessPlayer,
+    required this.targetPlayer,
+    required this.currentDeviceIsWitness,
+    required this.isResolvingEffect,
+    required this.onContinueWithoutExchange,
+    required this.onWitnessCardSelected,
+  });
+
+  final Player witnessPlayer;
+  final Player targetPlayer;
+  final bool currentDeviceIsWitness;
+  final bool isResolvingEffect;
+  final VoidCallback onContinueWithoutExchange;
+  final ValueChanged<GameCard> onWitnessCardSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final foundSuspiciousCard = playerHandHasGuiltyOrAccomplice(targetPlayer);
+    final witnessCanExchange = witnessPlayer.hand.isNotEmpty;
+
+    if (!currentDeviceIsWitness) {
+      return Text(
+        'Somente ${witnessPlayer.name} deve olhar a mão de ${targetPlayer.name}.',
+        style: const TextStyle(color: Colors.white60),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Informação secreta para ${witnessPlayer.name}',
+          style: const TextStyle(
+            color: Color(0xFFE7C76F),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _EffectHandPanel(
+          title: 'Mão de ${targetPlayer.name}',
+          cards: targetPlayer.hand,
+          highlightSuspiciousCards: true,
+          emptyMessage: 'Nenhuma carta na mão.',
+        ),
+        const SizedBox(height: 12),
+        _EffectHandPanel(
+          title: 'Sua mão',
+          cards: witnessPlayer.hand,
+          highlightSuspiciousCards: false,
+          emptyMessage: 'Você não tem cartas para trocar.',
+        ),
+        const SizedBox(height: 12),
+        if (!foundSuspiciousCard)
+          const Text(
+            'Nenhum Culpado ou Cúmplice foi encontrado.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
+          )
+        else if (!witnessCanExchange)
+          const Text(
+            'Você encontrou Culpado ou Cúmplice, mas não tem cartas para trocar.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
+          )
+        else ...[
+          const Text(
+            'Culpado ou Cúmplice encontrado. Escolha uma carta sua para trocar.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 12),
+          ...witnessPlayer.hand.map((card) {
+            return Card(
+              color: const Color(0xFF120818),
+              child: ListTile(
+                title: Text(
+                  card.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(card.shortText),
+                trailing: const Icon(Icons.swap_horiz),
+                onTap: isResolvingEffect
+                    ? null
+                    : () {
+                        onWitnessCardSelected(card);
+                      },
+              ),
+            );
+          }),
+        ],
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: isResolvingEffect ? null : onContinueWithoutExchange,
+          icon: const Icon(Icons.skip_next),
+          label: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              foundSuspiciousCard && witnessCanExchange
+                  ? 'Não trocar'
+                  : 'Continuar',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WitnessTargetExchangeStep extends StatelessWidget {
+  const _WitnessTargetExchangeStep({
+    required this.witnessCardName,
+    required this.targetPlayer,
+    required this.currentDeviceIsTarget,
+    required this.isResolvingEffect,
+    required this.onTargetCardSelected,
+  });
+
+  final String witnessCardName;
+  final Player targetPlayer;
+  final bool currentDeviceIsTarget;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onTargetCardSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!currentDeviceIsTarget) {
+      return Text(
+        'Aguardando ${targetPlayer.name} escolher uma carta para entregar em troca.',
+        style: const TextStyle(color: Colors.white60),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '${targetPlayer.name}, escolha uma carta da sua mão para trocar por $witnessCardName.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        ...targetPlayer.hand.map((card) {
+          return Card(
+            color: const Color(0xFF120818),
+            child: ListTile(
+              title: Text(
+                card.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(card.shortText),
+              trailing: const Icon(Icons.swap_horiz),
+              onTap: isResolvingEffect
+                  ? null
+                  : () {
+                      onTargetCardSelected(card);
+                    },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _EffectHandPanel extends StatelessWidget {
+  const _EffectHandPanel({
+    required this.title,
+    required this.cards,
+    required this.highlightSuspiciousCards,
+    required this.emptyMessage,
+  });
+
+  final String title;
+  final List<GameCard> cards;
+  final bool highlightSuspiciousCards;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF120818),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFFE7C76F),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (cards.isEmpty)
+            Text(
+              emptyMessage,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else
+            ...cards.map((card) {
+              final suspicious =
+                  card.templateId == 'culpado' ||
+                  card.templateId == 'cumplice';
+              final highlighted = highlightSuspiciousCards && suspicious;
+
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  highlighted ? Icons.warning_amber : Icons.visibility,
+                  color: highlighted
+                      ? const Color(0xFFE7C76F)
+                      : Colors.white70,
+                ),
+                title: Text(card.name),
+                subtitle: Text(card.shortText),
+              );
+            }),
+        ],
+      ),
+    );
   }
 }
 
@@ -1133,8 +2725,18 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
     final availableTargets = session.gameState.players.where((player) {
       final isActingPlayer = player.id == actingPlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
+      final isProtected = _blockingProtectionForPlayer(
+            session: session,
+            player: player,
+            effectType: OnlineEffectType.handcuffs,
+          ) !=
+          null;
 
       if (!hasCardsInHand) {
+        return false;
+      }
+
+      if (isProtected) {
         return false;
       }
 
@@ -1618,8 +3220,14 @@ class _TotoPendingEffectCard extends StatelessWidget {
     final availableTargets = session.gameState.players.where((player) {
       final isTotoPlayer = player.id == totoPlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
+      final isProtected = _blockingProtectionForPlayer(
+            session: session,
+            player: player,
+            effectType: OnlineEffectType.toto,
+          ) !=
+          null;
 
-      return !isTotoPlayer && hasCardsInHand;
+      return !isTotoPlayer && hasCardsInHand && !isProtected;
     }).toList();
     final targetWasSelected = targetPlayer != null;
     final cardWasRevealed = effect.revealedCardName != null;
@@ -1871,8 +3479,14 @@ class _DetectivePendingEffectCard extends StatelessWidget {
     final availableTargets = session.gameState.players.where((player) {
       final isDetective = player.id == detectivePlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
+      final isProtected = _blockingProtectionForPlayer(
+            session: session,
+            player: player,
+            effectType: OnlineEffectType.detective,
+          ) !=
+          null;
 
-      return !isDetective && hasCardsInHand;
+      return !isDetective && hasCardsInHand && !isProtected;
     }).toList();
 
     return Card(
@@ -1979,10 +3593,12 @@ class _OnlineTableCard extends StatelessWidget {
   const _OnlineTableCard({
     required this.gameState,
     required this.currentPlayer,
+    required this.activeProtections,
   });
 
   final GameState gameState;
   final Player currentPlayer;
+  final List<OnlineActiveProtection> activeProtections;
 
   String deckSummaryText() {
     final initialDeckSize = gameState.initialDeckSize;
@@ -2026,6 +3642,9 @@ class _OnlineTableCard extends StatelessWidget {
             const SizedBox(height: 12),
             ...gameState.players.map((tablePlayer) {
               final isCurrent = tablePlayer.id == currentPlayer.id;
+              final playerProtections = activeProtections.where((protection) {
+                return protection.playerId == tablePlayer.id;
+              }).toList();
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
@@ -2081,6 +3700,67 @@ class _OnlineTableCard extends StatelessWidget {
                         ],
                       ),
                     ],
+                    if (playerProtections.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF120818),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFFE7C76F),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.shield,
+                                  size: 18,
+                                  color: Color(0xFFE7C76F),
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Proteções ativas',
+                                  style: TextStyle(
+                                    color: Color(0xFFE7C76F),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...playerProtections.map((protection) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      protection.cardName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      protection.description,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (tablePlayer.playedCards.isEmpty)
                       const Text(
@@ -2114,3 +3794,4 @@ class _OnlineTableCard extends StatelessWidget {
     );
   }
 }
+

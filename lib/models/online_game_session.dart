@@ -10,6 +10,7 @@ class OnlineGameSession {
     required this.roundsPlayed,
     this.rematchProposalPlayerIds = const [],
     this.nextRoundReadyPlayerIds = const [],
+    this.activeProtections = const [],
     this.pendingEffect,
   });
 
@@ -19,6 +20,7 @@ class OnlineGameSession {
   final int roundsPlayed;
   final List<String> rematchProposalPlayerIds;
   final List<String> nextRoundReadyPlayerIds;
+  final List<OnlineActiveProtection> activeProtections;
   final OnlinePendingEffect? pendingEffect;
 
   OnlineGameSession copyWith({
@@ -28,6 +30,7 @@ class OnlineGameSession {
     int? roundsPlayed,
     List<String>? rematchProposalPlayerIds,
     List<String>? nextRoundReadyPlayerIds,
+    List<OnlineActiveProtection>? activeProtections,
     OnlinePendingEffect? pendingEffect,
     bool clearPendingEffect = false,
   }) {
@@ -40,9 +43,24 @@ class OnlineGameSession {
           rematchProposalPlayerIds ?? this.rematchProposalPlayerIds,
       nextRoundReadyPlayerIds:
           nextRoundReadyPlayerIds ?? this.nextRoundReadyPlayerIds,
+      activeProtections: activeProtections ?? this.activeProtections,
       pendingEffect: clearPendingEffect
           ? null
           : pendingEffect ?? this.pendingEffect,
     );
   }
+}
+
+class OnlineActiveProtection {
+  const OnlineActiveProtection({
+    required this.playerId,
+    required this.cardTemplateId,
+    required this.cardName,
+    required this.description,
+  });
+
+  final String playerId;
+  final String cardTemplateId;
+  final String cardName;
+  final String description;
 }

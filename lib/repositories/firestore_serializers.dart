@@ -124,6 +124,9 @@ Map<String, Object?> onlineGameSessionToFirestore(
     'roundsPlayed': session.roundsPlayed,
     'rematchProposalPlayerIds': session.rematchProposalPlayerIds,
     'nextRoundReadyPlayerIds': session.nextRoundReadyPlayerIds,
+    'activeProtections': session.activeProtections
+        .map(onlineActiveProtectionToFirestore)
+        .toList(),
     'pendingEffect': session.pendingEffect == null
         ? null
         : onlinePendingEffectToFirestore(session.pendingEffect!),
@@ -147,11 +150,38 @@ OnlineGameSession onlineGameSessionFromFirestore({
     nextRoundReadyPlayerIds: List<String>.from(
       data['nextRoundReadyPlayerIds'] as List<dynamic>? ?? [],
     ),
+    activeProtections:
+        (data['activeProtections'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(onlineActiveProtectionFromFirestore)
+            .toList(),
     pendingEffect: data['pendingEffect'] == null
         ? null
         : onlinePendingEffectFromFirestore(
             data['pendingEffect'] as Map<String, dynamic>,
           ),
+  );
+}
+
+Map<String, Object?> onlineActiveProtectionToFirestore(
+  OnlineActiveProtection protection,
+) {
+  return {
+    'playerId': protection.playerId,
+    'cardTemplateId': protection.cardTemplateId,
+    'cardName': protection.cardName,
+    'description': protection.description,
+  };
+}
+
+OnlineActiveProtection onlineActiveProtectionFromFirestore(
+  Map<String, dynamic> data,
+) {
+  return OnlineActiveProtection(
+    playerId: data['playerId'] as String? ?? '',
+    cardTemplateId: data['cardTemplateId'] as String? ?? '',
+    cardName: data['cardName'] as String? ?? 'Proteção',
+    description: data['description'] as String? ?? '',
   );
 }
 
@@ -167,6 +197,9 @@ Map<String, Object?> onlinePendingEffectToFirestore(
     'revealedCardId': effect.revealedCardId,
     'revealedCardName': effect.revealedCardName,
     'revealedCardTemplateId': effect.revealedCardTemplateId,
+    'secondaryCardId': effect.secondaryCardId,
+    'secondaryCardName': effect.secondaryCardName,
+    'secondaryCardTemplateId': effect.secondaryCardTemplateId,
     'resultMessage': effect.resultMessage,
     'acknowledgedPlayerIds': effect.acknowledgedPlayerIds,
   };
@@ -188,6 +221,9 @@ OnlinePendingEffect onlinePendingEffectFromFirestore(
     revealedCardId: data['revealedCardId'] as String?,
     revealedCardName: data['revealedCardName'] as String?,
     revealedCardTemplateId: data['revealedCardTemplateId'] as String?,
+    secondaryCardId: data['secondaryCardId'] as String?,
+    secondaryCardName: data['secondaryCardName'] as String?,
+    secondaryCardTemplateId: data['secondaryCardTemplateId'] as String?,
     resultMessage: data['resultMessage'] as String?,
     acknowledgedPlayerIds: List<String>.from(
       data['acknowledgedPlayerIds'] as List<dynamic>? ?? [],

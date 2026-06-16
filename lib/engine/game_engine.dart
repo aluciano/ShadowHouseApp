@@ -166,6 +166,12 @@ void playCard({
     return;
   }
 
+  final finalWordWasPlayed = card.templateId == 'palavra_final';
+
+  if (finalWordWasPlayed) {
+    return;
+  }
+
   final swapWasPlayed = card.templateId == 'trocar';
 
   if (swapWasPlayed) {

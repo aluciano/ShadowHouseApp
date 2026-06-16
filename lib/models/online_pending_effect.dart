@@ -4,6 +4,10 @@ enum OnlineEffectType {
   handcuffs,
   accomplice,
   poisonedCup,
+  witness,
+  familyBaby,
+  publicNotice,
+  protectionCancel,
 }
 
 class OnlinePendingEffect {
@@ -16,6 +20,9 @@ class OnlinePendingEffect {
     this.revealedCardId,
     this.revealedCardName,
     this.revealedCardTemplateId,
+    this.secondaryCardId,
+    this.secondaryCardName,
+    this.secondaryCardTemplateId,
     this.resultMessage,
     this.acknowledgedPlayerIds = const [],
   });
@@ -28,6 +35,9 @@ class OnlinePendingEffect {
   final String? revealedCardId;
   final String? revealedCardName;
   final String? revealedCardTemplateId;
+  final String? secondaryCardId;
+  final String? secondaryCardName;
+  final String? secondaryCardTemplateId;
   final String? resultMessage;
   final List<String> acknowledgedPlayerIds;
 
@@ -42,6 +52,9 @@ class OnlinePendingEffect {
     String? revealedCardId,
     String? revealedCardName,
     String? revealedCardTemplateId,
+    String? secondaryCardId,
+    String? secondaryCardName,
+    String? secondaryCardTemplateId,
     String? resultMessage,
     List<String>? acknowledgedPlayerIds,
   }) {
@@ -55,6 +68,10 @@ class OnlinePendingEffect {
       revealedCardName: revealedCardName ?? this.revealedCardName,
       revealedCardTemplateId:
           revealedCardTemplateId ?? this.revealedCardTemplateId,
+      secondaryCardId: secondaryCardId ?? this.secondaryCardId,
+      secondaryCardName: secondaryCardName ?? this.secondaryCardName,
+      secondaryCardTemplateId:
+          secondaryCardTemplateId ?? this.secondaryCardTemplateId,
       resultMessage: resultMessage ?? this.resultMessage,
       acknowledgedPlayerIds:
           acknowledgedPlayerIds ?? this.acknowledgedPlayerIds,

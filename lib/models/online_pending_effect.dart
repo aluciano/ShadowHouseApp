@@ -3,6 +3,7 @@ enum OnlineEffectType {
   toto,
   handcuffs,
   accomplice,
+  poisonedCup,
 }
 
 class OnlinePendingEffect {

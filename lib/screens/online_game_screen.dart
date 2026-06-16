@@ -9,6 +9,8 @@ import '../models/match_history_entry.dart';
 import '../models/match_play_mode.dart';
 import '../models/online_game_session.dart';
 import '../models/online_pending_effect.dart';
+import '../models/online_player.dart';
+import '../models/online_room.dart';
 import '../models/player.dart';
 import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
@@ -2470,7 +2472,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     return cards.firstWhere((card) => card.id == cardId);
   }
 
-  dynamic _roomPlayerById(dynamic room, String playerId) {
+  OnlinePlayer? _roomPlayerById(OnlineRoom room, String playerId) {
     for (final player in room.players) {
       if (player.id == playerId) {
         return player;
@@ -2485,6 +2487,101 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
+  }
+
+  List<String> _pendingEffectRequiredPlayerIds(OnlineGameSession session) {
+    final effect = session.pendingEffect;
+
+    if (effect == null) {
+      return const [];
+    }
+
+    if (effect.resultMessage != null &&
+        effect.type != OnlineEffectType.familyBaby &&
+        effect.type != OnlineEffectType.portrait &&
+        effect.type != OnlineEffectType.spy) {
+      return _expectedViewerIds(
+        session,
+      ).where((playerId) => !effect.acknowledgedPlayerIds.contains(playerId)).toList();
+    }
+
+    switch (effect.type) {
+      case OnlineEffectType.detective:
+      case OnlineEffectType.toto:
+      case OnlineEffectType.handcuffs:
+      case OnlineEffectType.publicNotice:
+      case OnlineEffectType.protectionCancel:
+      case OnlineEffectType.butler:
+        return [effect.actingPlayerId];
+      case OnlineEffectType.accomplice:
+      case OnlineEffectType.poisonedCup:
+        if (effect.targetPlayerId == null) {
+          return [effect.actingPlayerId];
+        }
+
+        if (effect.revealedCardId == null) {
+          return [effect.targetPlayerId!];
+        }
+
+        return const [];
+      case OnlineEffectType.witness:
+        if (effect.targetPlayerId == null || effect.revealedCardId == null) {
+          return [effect.actingPlayerId];
+        }
+
+        return [effect.targetPlayerId!];
+      case OnlineEffectType.familyBaby:
+        return [effect.actingPlayerId];
+      case OnlineEffectType.swap:
+        if (effect.targetPlayerId == null || effect.revealedCardId == null) {
+          return [effect.actingPlayerId];
+        }
+
+        if (effect.secondaryCardId == null) {
+          return [effect.targetPlayerId!];
+        }
+
+        return const [];
+      case OnlineEffectType.share:
+      case OnlineEffectType.rumors:
+        if (effect.participantPlayerIds.isEmpty) {
+          return [effect.actingPlayerId];
+        }
+
+        return effect.participantPlayerIds
+            .where((playerId) => !effect.completedPlayerIds.contains(playerId))
+            .toList();
+      case OnlineEffectType.frenzy:
+        if (effect.participantPlayerIds.isEmpty) {
+          return [effect.actingPlayerId];
+        }
+
+        if (effect.previewCardNames.isNotEmpty) {
+          return [effect.actingPlayerId];
+        }
+
+        return effect.participantPlayerIds
+            .where((playerId) => !effect.completedPlayerIds.contains(playerId))
+            .toList();
+      case OnlineEffectType.portrait:
+        return [effect.actingPlayerId];
+      case OnlineEffectType.spy:
+        return [effect.actingPlayerId];
+    }
+  }
+
+  List<OnlinePlayer> _disconnectedBlockingPlayers(OnlineGameSession session) {
+    final requiredPlayerIds = _pendingEffectRequiredPlayerIds(session).toSet();
+
+    if (requiredPlayerIds.isEmpty) {
+      return const [];
+    }
+
+    return session.room.players.where((player) {
+      return requiredPlayerIds.contains(player.id) &&
+          !player.id.startsWith('placeholder_player_') &&
+          !player.isConnected;
+    }).toList();
   }
 
   void showMessage(String message) {
@@ -2769,6 +2866,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                 return !roomPlayer.isConnected &&
                     !roomPlayer.id.startsWith('placeholder_player_');
               }).toList();
+              final disconnectedBlockingPlayers =
+                  _disconnectedBlockingPlayers(session);
               final currentDeviceIsHost =
                   roomPlayer.id == session.room.hostPlayerId;
 
@@ -2881,6 +2980,20 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                           ],
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (disconnectedBlockingPlayers.isNotEmpty) ...[
+                    _DisconnectedPendingEffectCard(
+                      players: disconnectedBlockingPlayers,
+                      currentDeviceIsHost: currentDeviceIsHost,
+                      onRemovePlayer: (playerId) async {
+                        await RepositoryRegistry.onlineGame.removePlayer(
+                          roomId: session.room.id,
+                          actingPlayerId: widget.currentPlayerId,
+                          removedPlayerId: playerId,
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -6658,6 +6771,96 @@ class _OnlineRoomSystemMessageCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white70),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisconnectedPendingEffectCard extends StatelessWidget {
+  const _DisconnectedPendingEffectCard({
+    required this.players,
+    required this.currentDeviceIsHost,
+    required this.onRemovePlayer,
+  });
+
+  final List<OnlinePlayer> players;
+  final bool currentDeviceIsHost;
+  final ValueChanged<String> onRemovePlayer;
+
+  @override
+  Widget build(BuildContext context) {
+    final onlyOnePlayer = players.length == 1;
+
+    return Card(
+      color: const Color(0xFF3A1A1F),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.pending_actions,
+                  color: Color(0xFFE7C76F),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    onlyOnePlayer
+                        ? 'A partida está aguardando ${players.first.name}'
+                        : 'A partida está aguardando jogadores desconectados',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              onlyOnePlayer
+                  ? '${players.first.name} está com uma ação pendente e está desconectado.'
+                  : 'Há ações pendentes de jogadores que estão desconectados.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            if (currentDeviceIsHost) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Como anfitrião, você pode remover esses jogadores para destravar a partida.',
+                style: TextStyle(color: Colors.white60),
+              ),
+            ],
+            ...players.map((player) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        player.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (currentDeviceIsHost)
+                      TextButton.icon(
+                        onPressed: () {
+                          onRemovePlayer(player.id);
+                        },
+                        icon: const Icon(Icons.person_remove),
+                        label: const Text('Remover'),
+                      ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),

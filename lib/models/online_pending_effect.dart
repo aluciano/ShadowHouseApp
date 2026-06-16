@@ -1,6 +1,7 @@
 enum OnlineEffectType {
   detective,
   toto,
+  handcuffs,
 }
 
 class OnlinePendingEffect {
@@ -8,6 +9,7 @@ class OnlinePendingEffect {
     required this.type,
     required this.actingPlayerId,
     required this.cardName,
+    this.allowSelfTarget = false,
     this.targetPlayerId,
     this.revealedCardId,
     this.revealedCardName,
@@ -19,6 +21,7 @@ class OnlinePendingEffect {
   final OnlineEffectType type;
   final String actingPlayerId;
   final String cardName;
+  final bool allowSelfTarget;
   final String? targetPlayerId;
   final String? revealedCardId;
   final String? revealedCardName;
@@ -32,6 +35,7 @@ class OnlinePendingEffect {
     OnlineEffectType? type,
     String? actingPlayerId,
     String? cardName,
+    bool? allowSelfTarget,
     String? targetPlayerId,
     String? revealedCardId,
     String? revealedCardName,
@@ -43,6 +47,7 @@ class OnlinePendingEffect {
       type: type ?? this.type,
       actingPlayerId: actingPlayerId ?? this.actingPlayerId,
       cardName: cardName ?? this.cardName,
+      allowSelfTarget: allowSelfTarget ?? this.allowSelfTarget,
       targetPlayerId: targetPlayerId ?? this.targetPlayerId,
       revealedCardId: revealedCardId ?? this.revealedCardId,
       revealedCardName: revealedCardName ?? this.revealedCardName,

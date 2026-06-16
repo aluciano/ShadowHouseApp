@@ -110,7 +110,11 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       final previousPlayerId = gameState.currentPlayer.id;
       final isDetectiveCard = card.templateId == 'detetive';
       final isTotoCard = card.templateId == 'toto';
-      final hasPendingResolution = isDetectiveCard || isTotoCard;
+      final isHandcuffsCard =
+          card.templateId == 'xerife' ||
+          card.templateId == 'chave_enferrujada';
+      final hasPendingResolution =
+          isDetectiveCard || isTotoCard || isHandcuffsCard;
 
       playCard(
         gameState: gameState,
@@ -168,6 +172,24 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         type: OnlineEffectType.toto,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'xerife') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.handcuffs,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+        allowSelfTarget: false,
+      );
+    }
+
+    if (card.templateId == 'chave_enferrujada') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.handcuffs,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+        allowSelfTarget: true,
       );
     }
 
@@ -342,6 +364,84 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
   }
 
+  Future<void> resolveHandcuffsTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+
+      resolveHandcuffsEffect(
+        gameState: session.gameState,
+        targetPlayer: target,
+      );
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage:
+                '${actingPlayer.name} colocou as algemas em ${target.name}.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver as Algemas: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipHandcuffsWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar o efeito de Algemas: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   String _totoResultMessage({
     required Player targetPlayer,
     required GameCard revealedCard,
@@ -463,8 +563,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     return {
       'cumplice',
       'taca_envenenada',
-      'xerife',
-      'chave_enferrujada',
       'bebe_da_familia',
       'testemunha',
       'trocar',
@@ -585,6 +683,15 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onTotoWithoutTarget: () {
                         skipTotoWithoutTarget(session);
                       },
+                      onHandcuffsTargetSelected: (target) {
+                        resolveHandcuffsTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onHandcuffsWithoutTarget: () {
+                        skipHandcuffsWithoutTarget(session);
+                      },
                       onAcknowledge: () {
                         acknowledgePendingEffect(session);
                       },
@@ -677,6 +784,8 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onTotoTargetSelected,
     required this.onTotoCardSelected,
     required this.onTotoWithoutTarget,
+    required this.onHandcuffsTargetSelected,
+    required this.onHandcuffsWithoutTarget,
     required this.onAcknowledge,
   });
 
@@ -687,6 +796,8 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final ValueChanged<Player> onTotoTargetSelected;
   final ValueChanged<GameCard> onTotoCardSelected;
   final VoidCallback onTotoWithoutTarget;
+  final ValueChanged<Player> onHandcuffsTargetSelected;
+  final VoidCallback onHandcuffsWithoutTarget;
   final VoidCallback onAcknowledge;
 
   @override
@@ -712,7 +823,205 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onWithoutTarget: onTotoWithoutTarget,
           onAcknowledge: onAcknowledge,
         );
+      case OnlineEffectType.handcuffs:
+        return _HandcuffsPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onHandcuffsTargetSelected,
+          onWithoutTarget: onHandcuffsWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
     }
+  }
+}
+
+class _HandcuffsPendingEffectCard extends StatelessWidget {
+  const _HandcuffsPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      final isActingPlayer = player.id == actingPlayer.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      if (!hasCardsInHand) {
+        return false;
+      }
+
+      if (!effect.allowSelfTarget && isActingPlayer) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.link,
+                  color: Color(0xFFE7C76F),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Efeito de Algemas',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Carta jogada: ${effect.cardName}',
+              style: const TextStyle(
+                color: Color(0xFFE7C76F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              targetPlayer == null
+                  ? '${actingPlayer.name} deve escolher quem receberá as algemas.'
+                  : '${actingPlayer.name} colocou as algemas em ${targetPlayer.name}.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            if (targetPlayer == null) ...[
+              if (availableTargets.isEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Não há jogadores com cartas na mão para receber as algemas.',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    if (currentDeviceIsActingPlayer) ...[
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: isResolvingEffect ? null : onWithoutTarget,
+                        icon: const Icon(Icons.skip_next),
+                        label: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text('Continuar'),
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              else if (currentDeviceIsActingPlayer)
+                ...availableTargets.map((target) {
+                  final alreadyHasHandcuffs = target.hasHandcuffs;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(target);
+                            },
+                      icon: Icon(
+                        alreadyHasHandcuffs ? Icons.link_off : Icons.link,
+                      ),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          alreadyHasHandcuffs
+                              ? '${target.name} — já está com algemas'
+                              : '${target.name} (${target.hand.length} carta${target.hand.length == 1 ? '' : 's'})',
+                        ),
+                      ),
+                    ),
+                  );
+                })
+              else
+                const Text(
+                  'Aguardando a escolha de quem receberá as algemas.',
+                  style: TextStyle(color: Colors.white60),
+                ),
+            ] else ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1124,6 +1433,20 @@ class _OnlineTableCard extends StatelessWidget {
   final GameState gameState;
   final Player currentPlayer;
 
+  String deckSummaryText() {
+    final initialDeckSize = gameState.initialDeckSize;
+    final currentDeckSize = gameState.deck.length;
+    final drawnCards = gameState.drawnCardsCount;
+
+    if (drawnCards <= 0) {
+      return 'Monte de compras: $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
+    }
+
+    final subtractions = List.generate(drawnCards, (_) => '1').join(' - ');
+
+    return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -1139,6 +1462,14 @@ class _OnlineTableCard extends StatelessWidget {
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFE7C76F),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              deckSummaryText(),
+              style: const TextStyle(
+                color: Color(0xFFE7C76F),
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 12),
@@ -1179,6 +1510,26 @@ class _OnlineTableCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (tablePlayer.hasHandcuffs) ...[
+                      const SizedBox(height: 8),
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.link,
+                            size: 18,
+                            color: Color(0xFFE7C76F),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Algemas',
+                            style: TextStyle(
+                              color: Color(0xFFE7C76F),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (tablePlayer.playedCards.isEmpty)
                       const Text(

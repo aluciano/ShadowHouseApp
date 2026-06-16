@@ -113,8 +113,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
       final isHandcuffsCard =
           card.templateId == 'xerife' ||
           card.templateId == 'chave_enferrujada';
+      final isAccompliceCard = card.templateId == 'cumplice';
       final hasPendingResolution =
-          isDetectiveCard || isTotoCard || isHandcuffsCard;
+          isDetectiveCard ||
+          isTotoCard ||
+          isHandcuffsCard ||
+          isAccompliceCard;
 
       playCard(
         gameState: gameState,
@@ -190,6 +194,14 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
         actingPlayerId: actingPlayerId,
         cardName: card.name,
         allowSelfTarget: true,
+      );
+    }
+
+    if (card.templateId == 'cumplice') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.accomplice,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
       );
     }
 
@@ -442,6 +454,155 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     }
   }
 
+  Future<void> selectAccompliceTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher o alvo do Cúmplice: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveAccompliceDiscard({
+    required OnlineGameSession session,
+    required GameCard cardToDiscard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || effect.targetPlayerId == null || isResolvingEffect) {
+      return;
+    }
+
+    final targetPlayer = _playerById(
+      session.gameState,
+      effect.targetPlayerId!,
+    );
+    final isGuiltyCard = cardToDiscard.templateId == 'culpado';
+    final isLastCardInHand = targetPlayer.hand.length == 1;
+
+    if (isGuiltyCard && !isLastCardInHand) {
+      showMessage(
+        'O Culpado só pode ser descartado se for a última carta da mão.',
+      );
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final hadCardInDeck = session.gameState.deck.isNotEmpty;
+
+      resolveForcedDiscardEffect(
+        gameState: session.gameState,
+        targetPlayer: targetPlayer,
+        cardToDiscard: cardToDiscard,
+        effectName: effect.cardName,
+      );
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            revealedCardId: cardToDiscard.id,
+            revealedCardName: cardToDiscard.name,
+            revealedCardTemplateId: cardToDiscard.templateId,
+            resultMessage: _forcedDiscardResultMessage(
+              gameState: session.gameState,
+              targetPlayer: targetPlayer,
+              discardedCard: cardToDiscard,
+              hadCardInDeck: hadCardInDeck,
+            ),
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver o Cúmplice: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipAccompliceWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await RepositoryRegistry.onlineGame.saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar o efeito do Cúmplice: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  String _forcedDiscardResultMessage({
+    required GameState gameState,
+    required Player targetPlayer,
+    required GameCard discardedCard,
+    required bool hadCardInDeck,
+  }) {
+    if (gameState.roundFinished) {
+      return gameState.roundResult?.reason ??
+          '${targetPlayer.name} descartou ${discardedCard.name}.';
+    }
+
+    if (hadCardInDeck) {
+      return '${targetPlayer.name} descartou ${discardedCard.name} e comprou uma carta.';
+    }
+
+    return '${targetPlayer.name} descartou ${discardedCard.name}.';
+  }
+
   String _totoResultMessage({
     required Player targetPlayer,
     required GameCard revealedCard,
@@ -561,7 +722,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
 
   bool _cardNeedsOnlineResolution(GameCard card) {
     return {
-      'cumplice',
       'taca_envenenada',
       'bebe_da_familia',
       'testemunha',
@@ -692,6 +852,21 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
                       onHandcuffsWithoutTarget: () {
                         skipHandcuffsWithoutTarget(session);
                       },
+                      onAccompliceTargetSelected: (target) {
+                        selectAccompliceTarget(
+                          session: session,
+                          target: target,
+                        );
+                      },
+                      onAccompliceCardSelected: (card) {
+                        resolveAccompliceDiscard(
+                          session: session,
+                          cardToDiscard: card,
+                        );
+                      },
+                      onAccompliceWithoutTarget: () {
+                        skipAccompliceWithoutTarget(session);
+                      },
                       onAcknowledge: () {
                         acknowledgePendingEffect(session);
                       },
@@ -786,6 +961,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onTotoWithoutTarget,
     required this.onHandcuffsTargetSelected,
     required this.onHandcuffsWithoutTarget,
+    required this.onAccompliceTargetSelected,
+    required this.onAccompliceCardSelected,
+    required this.onAccompliceWithoutTarget,
     required this.onAcknowledge,
   });
 
@@ -798,6 +976,9 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final VoidCallback onTotoWithoutTarget;
   final ValueChanged<Player> onHandcuffsTargetSelected;
   final VoidCallback onHandcuffsWithoutTarget;
+  final ValueChanged<Player> onAccompliceTargetSelected;
+  final ValueChanged<GameCard> onAccompliceCardSelected;
+  final VoidCallback onAccompliceWithoutTarget;
   final VoidCallback onAcknowledge;
 
   @override
@@ -830,6 +1011,16 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           isResolvingEffect: isResolvingEffect,
           onTargetSelected: onHandcuffsTargetSelected,
           onWithoutTarget: onHandcuffsWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.accomplice:
+        return _AccomplicePendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onAccompliceTargetSelected,
+          onCardSelected: onAccompliceCardSelected,
+          onWithoutTarget: onAccompliceWithoutTarget,
           onAcknowledge: onAcknowledge,
         );
     }
@@ -1021,6 +1212,279 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AccomplicePendingEffectCard extends StatelessWidget {
+  const _AccomplicePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onCardSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final accomplicePlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsAccomplice = currentPlayerId == accomplicePlayer.id;
+    final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      final isAccomplicePlayer = player.id == accomplicePlayer.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+
+      return !isAccomplicePlayer && hasCardsInHand;
+    }).toList();
+    final targetWasSelected = targetPlayer != null;
+    final cardWasDiscarded = effect.revealedCardName != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.group_add,
+                  color: Color(0xFFE7C76F),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Efeito do Cúmplice',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Carta jogada: ${effect.cardName}',
+              style: const TextStyle(
+                color: Color(0xFFE7C76F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _statusText(
+                accomplicePlayer: accomplicePlayer,
+                targetPlayer: targetPlayer,
+                cardWasDiscarded: cardWasDiscarded,
+              ),
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            if (!targetWasSelected) ...[
+              if (availableTargets.isEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Não há outros jogadores com cartas na mão para escolher.',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    if (currentDeviceIsAccomplice) ...[
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: isResolvingEffect ? null : onWithoutTarget,
+                        icon: const Icon(Icons.skip_next),
+                        label: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text('Continuar'),
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              else if (currentDeviceIsAccomplice)
+                ...availableTargets.map((target) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () {
+                              onTargetSelected(target);
+                            },
+                      icon: const Icon(Icons.person_remove),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          'Escolher ${target.name} (${target.hand.length} carta${target.hand.length == 1 ? '' : 's'})',
+                        ),
+                      ),
+                    ),
+                  );
+                })
+              else
+                const Text(
+                  'Aguardando o Cúmplice escolher quem descartará uma carta.',
+                  style: TextStyle(color: Colors.white60),
+                ),
+            ] else if (!cardWasDiscarded) ...[
+              if (currentDeviceIsTarget)
+                _AccompliceDiscardCards(
+                  targetPlayer: targetPlayer,
+                  isResolvingEffect: isResolvingEffect,
+                  onCardSelected: onCardSelected,
+                )
+              else
+                Text(
+                  'Aguardando ${targetPlayer.name} escolher uma carta da própria mão para descartar.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
+            ] else ...[
+              Text(
+                effect.revealedCardName!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Color(0xFFE7C76F),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _statusText({
+    required Player accomplicePlayer,
+    required Player? targetPlayer,
+    required bool cardWasDiscarded,
+  }) {
+    if (targetPlayer == null) {
+      return '${accomplicePlayer.name} virou Cúmplice e deve escolher um jogador para descartar uma carta.';
+    }
+
+    if (!cardWasDiscarded) {
+      return '${accomplicePlayer.name} escolheu ${targetPlayer.name}.';
+    }
+
+    return '${targetPlayer.name} descartou uma carta pelo efeito do Cúmplice.';
+  }
+}
+
+class _AccompliceDiscardCards extends StatelessWidget {
+  const _AccompliceDiscardCards({
+    required this.targetPlayer,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+  });
+
+  final Player targetPlayer;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Escolha uma carta da sua mão para descartar.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 12),
+        ...targetPlayer.hand.map((card) {
+          final isBlockedGuilty =
+              card.templateId == 'culpado' && targetPlayer.hand.length > 1;
+
+          return Card(
+            color: const Color(0xFF120818),
+            child: ListTile(
+              title: Text(
+                card.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                isBlockedGuilty
+                    ? 'O Culpado só pode ser descartado como última carta.'
+                    : card.shortText,
+              ),
+              trailing: Icon(
+                isBlockedGuilty ? Icons.lock : Icons.delete_outline,
+              ),
+              onTap: isBlockedGuilty || isResolvingEffect
+                  ? null
+                  : () {
+                      onCardSelected(card);
+                    },
+            ),
+          );
+        }),
+      ],
     );
   }
 }

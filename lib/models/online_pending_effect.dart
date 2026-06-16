@@ -2,6 +2,7 @@ enum OnlineEffectType {
   detective,
   toto,
   handcuffs,
+  accomplice,
 }
 
 class OnlinePendingEffect {

@@ -4717,6 +4717,10 @@ class _SharePendingEffectCard extends StatelessWidget {
         expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
     final selectedCount = effect.completedPlayerIds.length;
     final effectWasResolved = effect.resultMessage != null;
+    final currentPlayerLeftNeighbor = _playerToRightInGameState(
+      gameState: session.gameState,
+      currentPlayer: currentPlayer,
+    );
 
     return Card(
       color: const Color(0xFF221229),
@@ -4815,7 +4819,7 @@ class _SharePendingEffectCard extends StatelessWidget {
             ] else if (currentPlayerIsParticipant &&
                 !currentPlayerAlreadySelected) ...[
               Text(
-                '${currentPlayer.name}, escolha uma carta da sua mão para passar à esquerda.',
+                '${currentPlayer.name}, escolha uma carta da sua mão para passar à esquerda para ${currentPlayerLeftNeighbor.name}.',
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 8),

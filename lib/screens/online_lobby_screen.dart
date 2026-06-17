@@ -440,31 +440,6 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Card(
-                      color: const Color(0xFF120818),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.workspace_premium,
-                              color: Color(0xFFE7C76F),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Anfitrião: ${host.name}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 24),
                     if (isGameInProgress)
                       Card(

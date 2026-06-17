@@ -171,6 +171,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     }
 
     final now = DateTime.now();
+    final wasConnected = room.players[playerIndex].isConnected;
     final updatedPlayers = [...room.players];
     updatedPlayers[playerIndex] = updatedPlayers[playerIndex].copyWith(
       isConnected: true,
@@ -181,8 +182,10 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     final updatedRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
-        systemMessage: '${updatedPlayers[playerIndex].name} reconectou.',
-        systemMessageAt: now,
+        systemMessage: wasConnected
+            ? room.systemMessage
+            : '${updatedPlayers[playerIndex].name} reconectou.',
+        systemMessageAt: wasConnected ? room.systemMessageAt : now,
       ),
     );
 
@@ -320,6 +323,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       final now = DateTime.now();
       final updatedPlayers = [...room.players];
       final existingPlayer = updatedPlayers[playerIndex];
+      final connectionChanged = existingPlayer.isConnected != isConnected;
 
       updatedPlayers[playerIndex] = existingPlayer.copyWith(
         isConnected: isConnected,
@@ -329,14 +333,17 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       var updatedRoom = _normalizeRoom(
         room.copyWith(
           players: updatedPlayers,
-          systemMessage: isConnected
-              ? '${existingPlayer.name} reconectou.'
-              : '${existingPlayer.name} desconectou.',
-          systemMessageAt: now,
+          systemMessage: !connectionChanged
+              ? room.systemMessage
+              : isConnected
+                  ? '${existingPlayer.name} reconectou.'
+                  : '${existingPlayer.name} desconectou.',
+          systemMessageAt:
+              connectionChanged ? now : room.systemMessageAt,
         ),
       );
 
-      if (updatedRoom.hostPlayerId != room.hostPlayerId) {
+      if (connectionChanged && updatedRoom.hostPlayerId != room.hostPlayerId) {
         final newHost = updatedRoom.players.firstWhere(
           (player) => player.id == updatedRoom.hostPlayerId,
         );

@@ -118,6 +118,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     final reconnectedPlayer = room.players.firstWhere(
       (player) => player.id == playerId,
     );
+    final wasConnected = reconnectedPlayer.isConnected;
     final updatedPlayers = room.players.map((player) {
       if (player.id != playerId) {
         return player;
@@ -132,8 +133,9 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     _latestRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
-        systemMessage: '${reconnectedPlayer.name} reconectou.',
-        systemMessageAt: DateTime.now(),
+        systemMessage:
+            wasConnected ? room.systemMessage : '${reconnectedPlayer.name} reconectou.',
+        systemMessageAt: wasConnected ? room.systemMessageAt : DateTime.now(),
       ),
     );
     _syncRoomIntoExistingSession(_latestRoom!);
@@ -216,15 +218,20 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       );
     }).toList();
 
+    final existingPlayer = room.players.firstWhere((player) => player.id == playerId);
+    final connectionChanged = existingPlayer.isConnected != isConnected;
     final changedPlayer =
         updatedPlayers.firstWhere((player) => player.id == playerId);
     _latestRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
-        systemMessage: isConnected
-            ? '${changedPlayer.name} reconectou.'
-            : '${changedPlayer.name} desconectou.',
-        systemMessageAt: DateTime.now(),
+        systemMessage: !connectionChanged
+            ? room.systemMessage
+            : isConnected
+                ? '${changedPlayer.name} reconectou.'
+                : '${changedPlayer.name} desconectou.',
+        systemMessageAt:
+            connectionChanged ? DateTime.now() : room.systemMessageAt,
       ),
     );
     _syncRoomIntoExistingSession(_latestRoom!);

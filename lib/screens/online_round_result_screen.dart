@@ -9,6 +9,7 @@ import '../repositories/online_game_session_factory.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
 import '../widgets/shadow_scrollable_content.dart';
+import '../widgets/transient_system_message_card.dart';
 import 'match_history_screen.dart';
 import 'online_game_screen.dart';
 import 'table_screen.dart';
@@ -183,6 +184,17 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
       roomId: session.room.id,
       actingPlayerId: widget.currentPlayerId,
       removedPlayerId: removedPlayerId,
+    );
+  }
+
+  Future<void> readmitDisconnectedPlayer({
+    required OnlineGameSession session,
+    required String playerId,
+  }) async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: session.room.id,
+      playerId: playerId,
+      isConnected: true,
     );
   }
 
@@ -379,8 +391,10 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                   ),
                   if (session.room.systemMessage != null) ...[
                     const SizedBox(height: 16),
-                    _RoundRoomSystemMessageCard(
+                    TransientSystemMessageCard(
                       message: session.room.systemMessage!,
+                      timestamp: session.room.systemMessageAt,
+                      backgroundColor: const Color(0xFF120818),
                     ),
                   ],
                   if (disconnectedPlayers.isNotEmpty) ...[
@@ -393,6 +407,12 @@ class _OnlineRoundResultScreenState extends State<OnlineRoundResultScreen> {
                         removeDisconnectedPlayer(
                           session: session,
                           removedPlayerId: playerId,
+                        );
+                      },
+                      onReadmitPlayer: (playerId) {
+                        readmitDisconnectedPlayer(
+                          session: session,
+                          playerId: playerId,
                         );
                       },
                     ),
@@ -629,47 +649,18 @@ class _RoundResultLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
-class _RoundRoomSystemMessageCard extends StatelessWidget {
-  const _RoundRoomSystemMessageCard({
-    required this.message,
-  });
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF120818),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                textAlign: TextAlign.left,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _RoundDisconnectedPlayersCard extends StatelessWidget {
   const _RoundDisconnectedPlayersCard({
     required this.players,
     required this.currentDeviceIsHost,
     required this.onRemovePlayer,
+    required this.onReadmitPlayer,
   });
 
   final List<OnlinePlayer> players;
   final bool currentDeviceIsHost;
   final ValueChanged<String> onRemovePlayer;
+  final ValueChanged<String> onReadmitPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -703,12 +694,24 @@ class _RoundDisconnectedPlayersCard extends StatelessWidget {
               ...players.map((player) {
                 return Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      onRemovePlayer(player.id);
-                    },
-                    icon: const Icon(Icons.person_remove),
-                    label: Text('Remover ${player.name}'),
+                  child: Wrap(
+                    spacing: 4,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          onReadmitPlayer(player.id);
+                        },
+                        icon: const Icon(Icons.person_add_alt_1),
+                        label: Text('Readmitir ${player.name}'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          onRemovePlayer(player.id);
+                        },
+                        icon: const Icon(Icons.person_remove),
+                        label: Text('Remover ${player.name}'),
+                      ),
+                    ],
                   ),
                 );
               }),

@@ -8,6 +8,7 @@ import '../models/online_room_status.dart';
 import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
+import '../widgets/transient_system_message_card.dart';
 import 'online_game_screen.dart';
 
 class OnlineLobbyScreen extends StatefulWidget {
@@ -185,6 +186,17 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     );
   }
 
+  Future<void> readmitDisconnectedPlayer({
+    required OnlineRoom room,
+    required String playerId,
+  }) async {
+    await RepositoryRegistry.onlineGame.updatePlayerConnection(
+      roomId: room.id,
+      playerId: playerId,
+      isConnected: true,
+    );
+  }
+
   void openGame(OnlineGameSession session) {
     if (!isOpeningGame) {
       isOpeningGame = true;
@@ -311,7 +323,10 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                     ),
                     if (room.systemMessage != null) ...[
                       const SizedBox(height: 20),
-                      _RoomSystemMessageCard(message: room.systemMessage!),
+                      TransientSystemMessageCard(
+                        message: room.systemMessage!,
+                        timestamp: room.systemMessageAt,
+                      ),
                     ],
                     const SizedBox(height: 28),
                     Card(
@@ -378,20 +393,38 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                                         !player.id
                                             .startsWith('placeholder_player_') &&
                                         !player.isConnected
-                                    ? IconButton(
-                                        tooltip:
-                                            'Remover jogador desconectado',
-                                        onPressed: () {
-                                          removeDisconnectedPlayer(
-                                            room: room,
-                                            actingPlayerId: currentPlayer.id,
-                                            removedPlayerId: player.id,
-                                          );
-                                        },
-                                        icon: const Icon(
-                                          Icons.person_remove,
-                                          color: Color(0xFFE7C76F),
-                                        ),
+                                    ? Wrap(
+                                        spacing: 4,
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Readmitir jogador',
+                                            onPressed: () {
+                                              readmitDisconnectedPlayer(
+                                                room: room,
+                                                playerId: player.id,
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.person_add_alt_1,
+                                              color: Color(0xFFE7C76F),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip:
+                                                'Remover jogador desconectado',
+                                            onPressed: () {
+                                              removeDisconnectedPlayer(
+                                                room: room,
+                                                actingPlayerId: currentPlayer.id,
+                                                removedPlayerId: player.id,
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.person_remove,
+                                              color: Color(0xFFE7C76F),
+                                            ),
+                                          ),
+                                        ],
                                       )
                                     : Icon(
                                         player.isConnected
@@ -414,18 +447,14 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            Icon(
-                              host.isConnected
-                                  ? Icons.workspace_premium
-                                  : Icons.wifi_off,
-                              color: const Color(0xFFE7C76F),
+                            const Icon(
+                              Icons.workspace_premium,
+                              color: Color(0xFFE7C76F),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                host.isConnected
-                                    ? '${host.name} é o anfitrião atual.'
-                                    : '${host.name} está desconectado. Um novo anfitrião será assumido automaticamente por outro jogador disponível.',
+                                'Anfitrião: ${host.name}',
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 16,
@@ -542,35 +571,5 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
       player.isHost ? 'Anfitrião' : 'Convidado',
       player.isConnected ? 'conectado' : 'desconectado',
     ].join(' • ');
-  }
-}
-
-class _RoomSystemMessageCard extends StatelessWidget {
-  const _RoomSystemMessageCard({
-    required this.message,
-  });
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF221229),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

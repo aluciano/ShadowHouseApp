@@ -15,6 +15,7 @@ import '../models/player.dart';
 import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/shadow_background.dart';
+import '../widgets/transient_system_message_card.dart';
 import 'online_round_result_screen.dart';
 
 OnlineActiveProtection? _blockingProtectionForPlayer({
@@ -2913,8 +2914,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                   ),
                   const SizedBox(height: 24),
                   if (session.room.systemMessage != null) ...[
-                    _OnlineRoomSystemMessageCard(
+                    TransientSystemMessageCard(
                       message: session.room.systemMessage!,
+                      timestamp: session.room.systemMessageAt,
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -2960,18 +2962,35 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                                       ),
                                     ),
                                     if (currentDeviceIsHost)
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          await RepositoryRegistry.onlineGame
-                                              .removePlayer(
-                                            roomId: session.room.id,
-                                            actingPlayerId: widget.currentPlayerId,
-                                            removedPlayerId:
-                                                disconnectedPlayer.id,
-                                          );
-                                        },
-                                        icon: const Icon(Icons.person_remove),
-                                        label: const Text('Remover'),
+                                      Wrap(
+                                        spacing: 4,
+                                        children: [
+                                          TextButton.icon(
+                                            onPressed: () async {
+                                              await RepositoryRegistry.onlineGame
+                                                  .updatePlayerConnection(
+                                                roomId: session.room.id,
+                                                playerId: disconnectedPlayer.id,
+                                                isConnected: true,
+                                              );
+                                            },
+                                            icon: const Icon(Icons.person_add_alt_1),
+                                            label: const Text('Readmitir'),
+                                          ),
+                                          TextButton.icon(
+                                            onPressed: () async {
+                                              await RepositoryRegistry.onlineGame
+                                                  .removePlayer(
+                                                roomId: session.room.id,
+                                                actingPlayerId: widget.currentPlayerId,
+                                                removedPlayerId:
+                                                    disconnectedPlayer.id,
+                                              );
+                                            },
+                                            icon: const Icon(Icons.person_remove),
+                                            label: const Text('Remover'),
+                                          ),
+                                        ],
                                       ),
                                   ],
                                 ),
@@ -6741,36 +6760,6 @@ class _DetectivePendingEffectCard extends StatelessWidget {
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OnlineRoomSystemMessageCard extends StatelessWidget {
-  const _OnlineRoomSystemMessageCard({
-    required this.message,
-  });
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF221229),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.campaign, color: Color(0xFFE7C76F)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ),
           ],
         ),
       ),

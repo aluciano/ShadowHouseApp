@@ -25,31 +25,55 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   final roomCodeController = TextEditingController();
 
   GameMode selectedGameMode = GameMode.expansionBalanced;
+  SavedOnlineRoomMembership? savedMembership;
   bool isCreatingTab = true;
   bool isCreatingRoom = false;
   bool isJoiningRoom = false;
-  bool isResumingRoom = true;
+  bool isResumingRoom = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
     resumeSavedRoomIfPossible();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     playerNameController.dispose();
     roomCodeController.dispose();
 
     super.dispose();
   }
 
-  Future<void> resumeSavedRoomIfPossible() async {
+  late final WidgetsBindingObserver _lifecycleObserver =
+      _OnlineEntryLifecycleObserver(
+        onResumed: () {
+          if (!isResumingRoom && savedMembership != null) {
+            resumeSavedRoomIfPossible(showErrorMessage: false);
+          }
+        },
+      );
+
+  Future<void> resumeSavedRoomIfPossible({
+    bool showErrorMessage = false,
+  }) async {
+    if (isResumingRoom) {
+      return;
+    }
+
+    setState(() {
+      isResumingRoom = true;
+    });
+
     final membership = await membershipStore.load();
 
     if (!mounted) {
       return;
     }
+
+    savedMembership = membership;
 
     if (membership == null) {
       setState(() {
@@ -99,6 +123,12 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       return;
     } catch (_) {
       await membershipStore.clear();
+      if (mounted) {
+        savedMembership = null;
+        if (showErrorMessage) {
+          showMessage('Não foi possível retomar sua última sala.');
+        }
+      }
     }
 
     if (!mounted) {
@@ -151,6 +181,11 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
         roomCode: room.code,
         playerId: room.hostPlayerId,
       ),
+    );
+    savedMembership = SavedOnlineRoomMembership(
+      roomId: room.id,
+      roomCode: room.code,
+      playerId: room.hostPlayerId,
     );
 
     if (!mounted) {
@@ -228,6 +263,11 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
         playerId: currentPlayer.id,
       ),
     );
+    savedMembership = SavedOnlineRoomMembership(
+      roomId: room.id,
+      roomCode: room.code,
+      playerId: currentPlayer.id,
+    );
 
     if (!mounted) {
       return;
@@ -276,6 +316,42 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
                           child: Text(
                             'Tentando retomar sua última sala online...',
                             style: TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else if (savedMembership != null) ...[
+                Card(
+                  color: const Color(0xFF221229),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Última sala: ${savedMembership!.roomCode}',
+                          style: const TextStyle(
+                            color: Color(0xFFE7C76F),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Você ainda pode tentar voltar para sua última partida online.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () {
+                            resumeSavedRoomIfPossible(showErrorMessage: true);
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text('Retomar última sala'),
                           ),
                         ),
                       ],
@@ -404,5 +480,20 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
         ),
       ),
     );
+  }
+}
+
+class _OnlineEntryLifecycleObserver extends WidgetsBindingObserver {
+  _OnlineEntryLifecycleObserver({
+    required this.onResumed,
+  });
+
+  final VoidCallback onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResumed();
+    }
   }
 }

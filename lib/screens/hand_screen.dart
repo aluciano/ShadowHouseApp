@@ -20,6 +20,8 @@ import 'broken_mask_effect_screen.dart';
 import 'unfinished_business_effect_screen.dart';
 import 'lullaby_effect_screen.dart';
 import 'sealed_card_effect_screen.dart';
+import 'secret_oath_effect_screen.dart';
+import 'betrayal_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -349,6 +351,21 @@ class HandScreen extends StatelessWidget {
                         return;
                       }
 
+                      if (isDirectQuestionCardBlocked(
+                        gameState: gameState,
+                        card: card,
+                      )) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
+                            ),
+                          ),
+                        );
+
+                        return;
+                      }
+
                       if (card.templateId == 'frenesi') {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
@@ -409,6 +426,54 @@ class HandScreen extends StatelessWidget {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
                             builder: (_) => SealedCardEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'juramento_secreto') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => SecretOathEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'silencio_na_mansao') {
+                        resolveSilenceEffect(
+                          gameState: gameState,
+                          actingPlayer: gameState.players.firstWhere(
+                            (player) => player.id == actingPlayerId,
+                          ),
+                        );
+
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => PassDeviceScreen(
+                              gameState: gameState,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'traicao_no_salao') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => BetrayalEffectScreen(
                               gameState: gameState,
                               actingPlayerId: actingPlayerId,
                             ),

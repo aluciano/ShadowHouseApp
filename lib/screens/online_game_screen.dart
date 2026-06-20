@@ -387,6 +387,16 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       return;
     }
 
+    if (isDirectQuestionCardBlocked(
+      gameState: gameState,
+      card: card,
+    )) {
+      showMessage(
+        'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
+      );
+      return;
+    }
+
     final shouldPlay = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -661,6 +671,30 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     if (card.templateId == 'carta_selada') {
       return OnlinePendingEffect(
         type: OnlineEffectType.sealedCard,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'juramento_secreto') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.secretOath,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'silencio_na_mansao') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.silence,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'traicao_no_salao') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.betrayal,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -2652,6 +2686,162 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     }
   }
 
+  Future<void> resolveSecretOathTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+      resolveSecretOathEffect(
+        gameState: session.gameState,
+        actingPlayer: actingPlayer,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage:
+                '${actingPlayer.name} e ${target.name} formaram um Juramento Secreto até o fim da rodada.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver O Juramento Secreto: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveSilenceNotice(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+      resolveSilenceEffect(
+        gameState: session.gameState,
+        actingPlayer: actingPlayer,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            resultMessage:
+                'Silêncio na Mansão está ativo até o início da próxima vez de ${actingPlayer.name}.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível ativar Silêncio na Mansão: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveBetrayalTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      resolveBetrayalEffect(
+        gameState: session.gameState,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage:
+                '${target.name} deixou de ser Cúmplice até o fim da rodada.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver Traição no Salão: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipBetrayalWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar Traição no Salão: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   String _forcedDiscardResultMessage({
     required GameState gameState,
     required Player targetPlayer,
@@ -2903,6 +3093,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       case OnlineEffectType.brokenMask:
       case OnlineEffectType.unfinishedBusiness:
       case OnlineEffectType.sealedCard:
+      case OnlineEffectType.secretOath:
+      case OnlineEffectType.betrayal:
+      case OnlineEffectType.silence:
         return [effect.actingPlayerId];
       case OnlineEffectType.accomplice:
       case OnlineEffectType.poisonedCup:
@@ -3637,6 +3830,24 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                         onSealedCardWithoutTarget: () {
                           skipSealedCardWithoutTarget(session);
                         },
+                        onSecretOathTargetSelected: (target) {
+                          resolveSecretOathTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onSilenceContinue: () {
+                          resolveSilenceNotice(session);
+                        },
+                        onBetrayalTargetSelected: (target) {
+                          resolveBetrayalTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onBetrayalWithoutTarget: () {
+                          skipBetrayalWithoutTarget(session);
+                        },
                         onPublicNoticeSubmitted: (message) {
                           submitPublicNoticeMessage(
                             session: session,
@@ -3789,6 +4000,10 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onLullabyContinue,
     required this.onSealedCardTargetSelected,
     required this.onSealedCardWithoutTarget,
+    required this.onSecretOathTargetSelected,
+    required this.onSilenceContinue,
+    required this.onBetrayalTargetSelected,
+    required this.onBetrayalWithoutTarget,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -3845,6 +4060,10 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final VoidCallback onLullabyContinue;
   final ValueChanged<Player> onSealedCardTargetSelected;
   final VoidCallback onSealedCardWithoutTarget;
+  final ValueChanged<Player> onSecretOathTargetSelected;
+  final VoidCallback onSilenceContinue;
+  final ValueChanged<Player> onBetrayalTargetSelected;
+  final VoidCallback onBetrayalWithoutTarget;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -4064,6 +4283,31 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           isResolvingEffect: isResolvingEffect,
           onTargetSelected: onSealedCardTargetSelected,
           onWithoutTarget: onSealedCardWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.secretOath:
+        return _SecretOathPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onSecretOathTargetSelected,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.silence:
+        return _SilencePendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onContinue: onSilenceContinue,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.betrayal:
+        return _BetrayalPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onBetrayalTargetSelected,
+          onWithoutTarget: onBetrayalWithoutTarget,
           onAcknowledge: onAcknowledge,
         );
     }
@@ -5345,6 +5589,389 @@ class _SealedCardPendingEffectCard extends StatelessWidget {
                 'Aguardando ${actingPlayer.name} escolher quem receberá a carta selada.',
                 style: const TextStyle(color: Colors.white60),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SecretOathPendingEffectCard extends StatelessWidget {
+  const _SecretOathPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final effectWasResolved = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final targets = session.gameState.players
+        .where((player) => player.id != actingPlayer.id)
+        .toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.handshake, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'O Juramento Secreto',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} escolher o alvo do Juramento Secreto.',
+                style: const TextStyle(color: Colors.white60),
+              )
+            else ...[
+              Text(
+                '${actingPlayer.name}, escolha outro jogador para formar o vínculo até o fim da rodada.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...targets.map((target) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: isResolvingEffect
+                        ? null
+                        : () => onTargetSelected(target),
+                    icon: const Icon(Icons.handshake),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(target.name),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SilencePendingEffectCard extends StatelessWidget {
+  const _SilencePendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onContinue,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final VoidCallback onContinue;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final effectWasResolved = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.volume_off, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Silêncio na Mansão',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} anunciar o Silêncio na Mansão.',
+                style: const TextStyle(color: Colors.white60),
+              )
+            else ...[
+              const Text(
+                'Até o início da sua próxima vez, Detetive e Totó não podem fazer perguntas diretas.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onContinue,
+                icon: const Icon(Icons.campaign),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Avisar a mesa'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BetrayalPendingEffectCard extends StatelessWidget {
+  const _BetrayalPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final effectWasResolved = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final targets = session.gameState.players.where((player) {
+      return player.playedCards.any((card) => card.templateId == 'cumplice');
+    }).toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.heart_broken, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Traição no Salão',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (targets.isEmpty) ...[
+              const Text(
+                'Não há jogador com Cúmplice à frente neste momento.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentDeviceIsActingPlayer) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutTarget,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} escolher quem deixará de ser Cúmplice.',
+                style: const TextStyle(color: Colors.white60),
+              )
+            else ...[
+              Text(
+                '${actingPlayer.name}, escolha um jogador com Cúmplice à frente.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...targets.map((target) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: isResolvingEffect
+                        ? null
+                        : () => onTargetSelected(target),
+                    icon: const Icon(Icons.heart_broken),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(target.name),
+                    ),
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
@@ -7959,6 +8586,33 @@ class _OnlineTableCard extends StatelessWidget {
     return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
   }
 
+  List<String> roundEffects() {
+    final effects = <String>[];
+
+    if (gameState.silenceOwnerPlayerId != null) {
+      final owner = gameState.players.firstWhere(
+        (player) => player.id == gameState.silenceOwnerPlayerId,
+      );
+      effects.add(
+        'Silêncio na Mansão: Detetive e Totó ficam bloqueados até o início da próxima vez de ${owner.name}.',
+      );
+    }
+
+    if (gameState.hasSecretOath) {
+      final firstPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.secretOathPlayerId,
+      );
+      final secondPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.secretOathPartnerPlayerId,
+      );
+      effects.add(
+        'Juramento Secreto: ${firstPlayer.name} e ${secondPlayer.name} estão vinculados até o fim da rodada.',
+      );
+    }
+
+    return effects;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -7984,6 +8638,52 @@ class _OnlineTableCard extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (roundEffects().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF120818),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFE7C76F),
+                  ),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.pending_actions,
+                          size: 18,
+                          color: Color(0xFFE7C76F),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Efeitos da rodada',
+                          style: TextStyle(
+                            color: Color(0xFFE7C76F),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...roundEffects().map((effect) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          effect,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             ...gameState.players.map((tablePlayer) {
               final isCurrent = tablePlayer.id == currentPlayer.id;

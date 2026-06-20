@@ -113,6 +113,9 @@ GameState _useOnlinePlayerIds(
     currentPlayerIndex: gameState.currentPlayerIndex,
     initialDeckSize: gameState.initialDeckSize,
     roundFinished: gameState.roundFinished,
+    silenceOwnerPlayerId: gameState.silenceOwnerPlayerId,
+    secretOathPlayerId: gameState.secretOathPlayerId,
+    secretOathPartnerPlayerId: gameState.secretOathPartnerPlayerId,
     roundResult: gameState.roundResult,
   );
 }

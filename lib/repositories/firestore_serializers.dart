@@ -287,6 +287,9 @@ Map<String, Object?> gameStateToFirestore(GameState gameState) {
     'currentPlayerIndex': gameState.currentPlayerIndex,
     'initialDeckSize': gameState.initialDeckSize,
     'roundFinished': gameState.roundFinished,
+    'silenceOwnerPlayerId': gameState.silenceOwnerPlayerId,
+    'secretOathPlayerId': gameState.secretOathPlayerId,
+    'secretOathPartnerPlayerId': gameState.secretOathPartnerPlayerId,
     'roundResult': gameState.roundResult == null
         ? null
         : roundResultToFirestore(gameState.roundResult!),
@@ -309,6 +312,9 @@ GameState gameStateFromFirestore(Map<String, dynamic> data) {
     currentPlayerIndex: data['currentPlayerIndex'] as int? ?? 0,
     initialDeckSize: data['initialDeckSize'] as int? ?? 0,
     roundFinished: data['roundFinished'] as bool? ?? false,
+    silenceOwnerPlayerId: data['silenceOwnerPlayerId'] as String?,
+    secretOathPlayerId: data['secretOathPlayerId'] as String?,
+    secretOathPartnerPlayerId: data['secretOathPartnerPlayerId'] as String?,
     roundResult: data['roundResult'] == null
         ? null
         : roundResultFromFirestore(

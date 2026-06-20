@@ -29,6 +29,33 @@ class TableScreen extends StatelessWidget {
     return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
   }
 
+  List<String> roundEffects() {
+    final effects = <String>[];
+
+    if (gameState.silenceOwnerPlayerId != null) {
+      final owner = gameState.players.firstWhere(
+        (player) => player.id == gameState.silenceOwnerPlayerId,
+      );
+      effects.add(
+        'Silêncio na Mansão: Detetive e Totó ficam bloqueados até o início da próxima vez de ${owner.name}.',
+      );
+    }
+
+    if (gameState.hasSecretOath) {
+      final firstPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.secretOathPlayerId,
+      );
+      final secondPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.secretOathPartnerPlayerId,
+      );
+      effects.add(
+        'Juramento Secreto: ${firstPlayer.name} e ${secondPlayer.name} estão vinculados até o fim da rodada.',
+      );
+    }
+
+    return effects;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,6 +103,37 @@ class TableScreen extends StatelessWidget {
                   fontStyle: FontStyle.italic,
                 ),
               ),
+              if (roundEffects().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Card(
+                  color: const Color(0xFF221229),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Efeitos da rodada',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFE7C76F),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...roundEffects().map((effect) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              effect,
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               ...gameState.players.map((player) {
                 final isCurrentPlayer = player.id == gameState.currentPlayer.id;

@@ -214,6 +214,24 @@ void playCard({
     return;
   }
 
+  final secretOathWasPlayed = card.templateId == 'juramento_secreto';
+
+  if (secretOathWasPlayed) {
+    return;
+  }
+
+  final silenceWasPlayed = card.templateId == 'silencio_na_mansao';
+
+  if (silenceWasPlayed) {
+    return;
+  }
+
+  final betrayalWasPlayed = card.templateId == 'traicao_no_salao';
+
+  if (betrayalWasPlayed) {
+    return;
+  }
+
   final swapWasPlayed = card.templateId == 'trocar';
 
   if (swapWasPlayed) {
@@ -326,26 +344,14 @@ void finishRoundWithGuiltyWin({
   }
 
   for (final player in winners) {
-    player.score += 2;
     roundPointsByPlayerId[player.id] = 2;
   }
 
-  final scoringSummary = gameState.players.map((player) {
-    final points = roundPointsByPlayerId[player.id] ?? 0;
-
-    if (points == 0) {
-      return '${player.name}: 0 pontos';
-    }
-
-    return '${player.name}: +$points pontos';
-  }).join('\n');
-
-  gameState.roundFinished = true;
-  gameState.roundResult = RoundResult(
-    type: RoundResultType.guiltyWins,
+  _finalizeRoundScoring(
+    gameState: gameState,
+    roundResultType: RoundResultType.guiltyWins,
     winner: guiltyPlayer,
     reason: reason,
-    scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
 }
@@ -403,7 +409,6 @@ void finishRoundWithDetectiveWin({
   }
 
   if (detectiveCanScore) {
-    detectivePlayer.score += 2;
     roundPointsByPlayerId[detectivePlayer.id] = 2;
   }
 
@@ -413,9 +418,17 @@ void finishRoundWithDetectiveWin({
     final isAccomplice = player.isAccomplice;
 
     if (!isDetective && !isGuilty && !isAccomplice) {
-      player.score += 1;
       roundPointsByPlayerId[player.id] = 1;
     }
+  }
+
+  _applySecretOathScoringImmediate(
+    gameState: gameState,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+
+  for (final player in gameState.players) {
+    player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
   final scoringSummary = gameState.players.map((player) {
@@ -486,7 +499,6 @@ void finishRoundWithTotoWin({
   }
 
   if (totoCanScore) {
-    totoPlayer.score += 3;
     roundPointsByPlayerId[totoPlayer.id] = 3;
   }
 
@@ -496,9 +508,17 @@ void finishRoundWithTotoWin({
     final isAccomplice = player.isAccomplice;
 
     if (!isTotoPlayer && !isGuilty && !isAccomplice) {
-      player.score += 1;
       roundPointsByPlayerId[player.id] = 1;
     }
+  }
+
+  _applySecretOathScoringImmediate(
+    gameState: gameState,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+
+  for (final player in gameState.players) {
+    player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
   final scoringSummary = gameState.players.map((player) {
@@ -552,9 +572,17 @@ void finishRoundWithHandcuffsWin({
     final isAccomplice = player.isAccomplice;
 
     if (!isGuilty && !isAccomplice) {
-      player.score += 1;
       roundPointsByPlayerId[player.id] = 1;
     }
+  }
+
+  _applySecretOathScoringImmediate(
+    gameState: gameState,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+
+  for (final player in gameState.players) {
+    player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
   final scoringSummary = gameState.players.map((player) {
@@ -574,6 +602,68 @@ void finishRoundWithHandcuffsWin({
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
+}
+
+void _finalizeRoundScoring({
+  required GameState gameState,
+  required RoundResultType roundResultType,
+  required Player? winner,
+  required String reason,
+  required Map<String, int> roundPointsByPlayerId,
+}) {
+  _applySecretOathScoringImmediate(
+    gameState: gameState,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+
+  for (final player in gameState.players) {
+    player.score += roundPointsByPlayerId[player.id] ?? 0;
+  }
+
+  final scoringSummary = gameState.players.map((player) {
+    final points = roundPointsByPlayerId[player.id] ?? 0;
+
+    if (points == 0) {
+      return '${player.name}: 0 pontos';
+    }
+
+    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+  }).join('\n');
+
+  gameState.roundFinished = true;
+  gameState.roundResult = RoundResult(
+    type: roundResultType,
+    winner: winner,
+    reason: reason,
+    scoringSummary: scoringSummary,
+    roundPointsByPlayerId: roundPointsByPlayerId,
+  );
+}
+
+void _applySecretOathScoringImmediate({
+  required GameState gameState,
+  required Map<String, int> roundPointsByPlayerId,
+}) {
+  final firstPlayerId = gameState.secretOathPlayerId;
+  final secondPlayerId = gameState.secretOathPartnerPlayerId;
+
+  if (firstPlayerId == null || secondPlayerId == null) {
+    return;
+  }
+
+  final firstPoints = roundPointsByPlayerId[firstPlayerId] ?? 0;
+  final secondPoints = roundPointsByPlayerId[secondPlayerId] ?? 0;
+
+  if (firstPoints > 0 && secondPoints == 0) {
+    final bonus = max(0, firstPoints - 1);
+    roundPointsByPlayerId[secondPlayerId] = bonus;
+    return;
+  }
+
+  if (secondPoints > 0 && firstPoints == 0) {
+    final bonus = max(0, secondPoints - 1);
+    roundPointsByPlayerId[firstPlayerId] = bonus;
+  }
 }
 
 Player findGuiltyPlayer(GameState gameState) {
@@ -745,6 +835,43 @@ List<GameCard> previewFrenzyCards({
 
 bool playerHasSealedCards(Player player) {
   return player.playedCards.any((card) => card.isFaceDown);
+}
+
+bool isDirectQuestionCardBlocked({
+  required GameState gameState,
+  required GameCard card,
+}) {
+  if (gameState.silenceOwnerPlayerId == null) {
+    return false;
+  }
+
+  return card.templateId == 'detetive' || card.templateId == 'toto';
+}
+
+void resolveSecretOathEffect({
+  required GameState gameState,
+  required Player actingPlayer,
+  required Player targetPlayer,
+}) {
+  gameState.secretOathPlayerId = actingPlayer.id;
+  gameState.secretOathPartnerPlayerId = targetPlayer.id;
+  gameState.moveToNextPlayer();
+}
+
+void resolveSilenceEffect({
+  required GameState gameState,
+  required Player actingPlayer,
+}) {
+  gameState.silenceOwnerPlayerId = actingPlayer.id;
+  gameState.moveToNextPlayer();
+}
+
+void resolveBetrayalEffect({
+  required GameState gameState,
+  required Player targetPlayer,
+}) {
+  targetPlayer.isAccomplice = false;
+  gameState.moveToNextPlayer();
 }
 
 List<GameCard> frenzyContributionCards({

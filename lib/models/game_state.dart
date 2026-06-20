@@ -12,6 +12,9 @@ class GameState {
     required this.initialDeckSize,
     this.roundFinished = false,
     this.roundResult,
+    this.silenceOwnerPlayerId,
+    this.secretOathPlayerId,
+    this.secretOathPartnerPlayerId,
   });
 
   final GameSetup setup;
@@ -22,6 +25,9 @@ class GameState {
   int currentPlayerIndex;
   bool roundFinished;
   RoundResult? roundResult;
+  String? silenceOwnerPlayerId;
+  String? secretOathPlayerId;
+  String? secretOathPartnerPlayerId;
 
   Player get currentPlayer => players[currentPlayerIndex];
 
@@ -41,6 +47,10 @@ class GameState {
     do {
       nextIndex = (nextIndex + 1) % players.length;
     } while (players[nextIndex].hand.isEmpty);
+
+    if (players[nextIndex].id == silenceOwnerPlayerId) {
+      silenceOwnerPlayerId = null;
+    }
 
     currentPlayerIndex = nextIndex;
   }
@@ -63,4 +73,7 @@ class GameState {
       sealedCards.map((card) => card.copyWith(isFaceDown: false)),
     );
   }
+
+  bool get hasSecretOath =>
+      secretOathPlayerId != null && secretOathPartnerPlayerId != null;
 }

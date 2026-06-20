@@ -19,6 +19,9 @@ enum OnlineEffectType {
   unfinishedBusiness,
   lullaby,
   sealedCard,
+  secretOath,
+  silence,
+  betrayal,
 }
 
 class OnlinePendingEffect {

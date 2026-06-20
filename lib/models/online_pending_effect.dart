@@ -15,6 +15,10 @@ enum OnlineEffectType {
   butler,
   portrait,
   spy,
+  brokenMask,
+  unfinishedBusiness,
+  lullaby,
+  sealedCard,
 }
 
 class OnlinePendingEffect {

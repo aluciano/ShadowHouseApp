@@ -16,6 +16,10 @@ import 'card_exchange_effect_screen.dart';
 import 'circular_card_pass_effect_screen.dart';
 import 'frenzy_effect_screen.dart';
 import 'rumors_effect_screen.dart';
+import 'broken_mask_effect_screen.dart';
+import 'unfinished_business_effect_screen.dart';
+import 'lullaby_effect_screen.dart';
+import 'sealed_card_effect_screen.dart';
 
 class HandScreen extends StatelessWidget {
   const HandScreen({
@@ -101,7 +105,10 @@ class HandScreen extends StatelessWidget {
                       final isGuiltyCard = card.templateId == 'culpado';
                       final isLastCardInHand = currentPlayer.hand.length == 1;
 
-                      if (isGuiltyCard && !isLastCardInHand) {
+                      final hasSealedCards = playerHasSealedCards(currentPlayer);
+
+                      if (isGuiltyCard &&
+                          (!isLastCardInHand || hasSealedCards)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Você só pode jogar o Culpado se ele for a última carta da sua mão.'),
@@ -351,6 +358,62 @@ class HandScreen extends StatelessWidget {
                             ),
                           ),
                               (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'mascara_quebrada') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => BrokenMaskEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'assunto_inacabado') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => UnfinishedBusinessEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'cancao_de_ninar') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => LullabyEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
+                        );
+
+                        return;
+                      }
+
+                      if (card.templateId == 'carta_selada') {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => SealedCardEffectScreen(
+                              gameState: gameState,
+                              actingPlayerId: actingPlayerId,
+                            ),
+                          ),
+                          (route) => route.isFirst,
                         );
 
                         return;

@@ -28,6 +28,10 @@ class GameState {
   int get drawnCardsCount => initialDeckSize - deck.length;
 
   void moveToNextPlayer() {
+    for (final player in players) {
+      _restoreSealedCardsIfNeeded(player);
+    }
+
     if (players.every((player) => player.hand.isEmpty)) {
       return;
     }
@@ -39,5 +43,24 @@ class GameState {
     } while (players[nextIndex].hand.isEmpty);
 
     currentPlayerIndex = nextIndex;
+  }
+
+  void _restoreSealedCardsIfNeeded(Player player) {
+    if (player.hand.isNotEmpty) {
+      return;
+    }
+
+    final sealedCards = player.playedCards
+        .where((card) => card.isFaceDown)
+        .toList();
+
+    if (sealedCards.isEmpty) {
+      return;
+    }
+
+    player.playedCards.removeWhere((card) => card.isFaceDown);
+    player.hand.addAll(
+      sealedCards.map((card) => card.copyWith(isFaceDown: false)),
+    );
   }
 }

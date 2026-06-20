@@ -197,19 +197,26 @@ class TableScreen extends StatelessWidget {
                             runSpacing: 8,
                             children: player.playedCards.map((card) {
                               final wasDiscarded = card.wasDiscarded;
+                              final isFaceDown = card.isFaceDown;
 
                               return Chip(
                                 avatar: Icon(
-                                  wasDiscarded
+                                  isFaceDown
+                                      ? Icons.lock
+                                      : wasDiscarded
                                       ? Icons.block
                                       : Icons.visibility,
                                   size: 16,
-                                  color: wasDiscarded
+                                  color: isFaceDown
+                                      ? const Color(0xFFE7C76F)
+                                      : wasDiscarded
                                       ? Colors.white70
                                       : const Color(0xFFE7C76F),
                                 ),
                                 label: Text(
-                                  card.name,
+                                  isFaceDown && !showHands
+                                      ? 'Carta selada'
+                                      : card.name,
                                   style: TextStyle(
                                     color: wasDiscarded
                                         ? Colors.white70

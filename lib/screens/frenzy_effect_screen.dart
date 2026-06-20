@@ -35,7 +35,7 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final eligiblePlayers = widget.gameState.players.where((player) {
-      return player.hand.isNotEmpty;
+      return player.hand.isNotEmpty || playerHasSealedCards(player);
     }).toList();
 
     return Scaffold(
@@ -63,6 +63,13 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
                   color: Colors.white70,
                 ),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'Se um jogador tiver Carta Selada Ã  frente, apenas essa carta entra no Frenesi e nenhuma outra da mÃ£o dele participa.',
+                style: TextStyle(
+                  color: Colors.white60,
+                ),
+              ),
               const SizedBox(height: 24),
               if (receivedCardsCountByPlayerId != null)
                 _FrenzyCompletedCard(
@@ -81,6 +88,9 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
                   onContinue: () {
                     final frenzyResolution = resolveFrenzyEffect(
                       gameState: widget.gameState,
+                      participantPlayerIds: eligiblePlayers
+                          .map((player) => player.id)
+                          .toList(),
                       selectedCardByPlayerId: selectedCardByPlayerId,
                     );
 
@@ -123,7 +133,35 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
         player: currentPlayer,
         currentIndex: currentSelectorIndex + 1,
         totalPlayers: eligiblePlayers.length,
+        hasSealedCards: playerHasSealedCards(currentPlayer),
+        needsHandChoice: currentPlayer.hand.isNotEmpty,
         onContinue: () {
+          if (playerHasSealedCards(currentPlayer)) {
+            final isLastPlayer = currentSelectorIndex == eligiblePlayers.length - 1;
+
+            if (isLastPlayer) {
+              setState(() {
+                previewCards = previewFrenzyCards(
+                  cards: frenzyContributionCards(
+                    gameState: widget.gameState,
+                    participantPlayerIds:
+                        eligiblePlayers.map((player) => player.id),
+                    selectedCardByPlayerId: selectedCardByPlayerId,
+                  ),
+                );
+              });
+
+              return;
+            }
+
+            setState(() {
+              currentSelectorIndex++;
+              privacyConfirmed = false;
+            });
+
+            return;
+          }
+
           setState(() {
             privacyConfirmed = true;
           });
@@ -143,7 +181,11 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
         if (isLastPlayer) {
           setState(() {
             previewCards = previewFrenzyCards(
-              cards: selectedCardByPlayerId.values,
+              cards: frenzyContributionCards(
+                gameState: widget.gameState,
+                participantPlayerIds: eligiblePlayers.map((player) => player.id),
+                selectedCardByPlayerId: selectedCardByPlayerId,
+              ),
             );
           });
 
@@ -201,7 +243,7 @@ class _FrenzyCompletedCard extends StatelessWidget {
               color: Color(0xFFE7C76F),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Frenesi!!! resolvido',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -430,12 +472,16 @@ class _PassToPlayerCard extends StatelessWidget {
     required this.player,
     required this.currentIndex,
     required this.totalPlayers,
+    required this.hasSealedCards,
+    required this.needsHandChoice,
     required this.onContinue,
   });
 
   final Player player;
   final int currentIndex;
   final int totalPlayers;
+  final bool hasSealedCards;
+  final bool needsHandChoice;
   final VoidCallback onContinue;
 
   @override
@@ -486,6 +532,16 @@ class _PassToPlayerCard extends StatelessWidget {
                 color: Colors.white70,
               ),
             ),
+            if (hasSealedCards) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Como há Carta Selada à frente deste jogador, nenhuma outra carta da mão dele entrará no Frenesi.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white60,
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -494,7 +550,7 @@ class _PassToPlayerCard extends StatelessWidget {
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
                   child: Text(
-                    'Escolher carta',
+                    'Continuar',
                     style: TextStyle(fontSize: 18),
                   ),
                 ),

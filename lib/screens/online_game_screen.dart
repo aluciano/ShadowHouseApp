@@ -295,6 +295,15 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         .toList();
   }
 
+  List<String> _frenzyParticipantPlayerIds(GameState gameState) {
+    return gameState.players
+        .where(
+          (player) => player.hand.isNotEmpty || playerHasSealedCards(player),
+        )
+        .map((player) => player.id)
+        .toList();
+  }
+
   List<String> _rumorsParticipantPlayerIds(GameState gameState) {
     return gameState.players.where((player) {
       final sourcePlayer = _playerToRightInGameState(
@@ -324,8 +333,16 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
           participantPlayerIds: _rumorsParticipantPlayerIds(gameState),
         );
       case OnlineEffectType.frenzy:
+        final participantPlayerIds = _frenzyParticipantPlayerIds(gameState);
+        final autoCompletedPlayerIds = participantPlayerIds.where((playerId) {
+          final player = gameState.players.firstWhere((item) => item.id == playerId);
+
+          return playerHasSealedCards(player);
+        }).toList();
+
         return effect.copyWith(
-          participantPlayerIds: _shareParticipantPlayerIds(gameState),
+          participantPlayerIds: participantPlayerIds,
+          completedPlayerIds: autoCompletedPlayerIds,
         );
       default:
         return effect;
@@ -361,9 +378,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
 
     final isGuiltyCard = card.templateId == 'culpado';
     final isLastCardInHand = player.hand.length == 1;
+    final hasSealedCards = playerHasSealedCards(player);
 
-    if (isGuiltyCard && !isLastCardInHand) {
-      showMessage('Você só pode jogar o Culpado como última carta da mão.');
+    if (isGuiltyCard && (!isLastCardInHand || hasSealedCards)) {
+      showMessage(
+        'Você só pode jogar o Culpado como última carta da mão e sem Carta Selada bloqueada à sua frente.',
+      );
       return;
     }
 
@@ -609,6 +629,38 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     if (card.templateId == 'espiao') {
       return OnlinePendingEffect(
         type: OnlineEffectType.spy,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'mascara_quebrada') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.brokenMask,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'assunto_inacabado') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.unfinishedBusiness,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'cancao_de_ninar') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.lullaby,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'carta_selada') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.sealedCard,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -1818,6 +1870,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
 
       final frenzyResolution = resolveFrenzyEffect(
         gameState: session.gameState,
+        participantPlayerIds: effect.participantPlayerIds,
         selectedCardByPlayerId: selectedCardsByPlayerId,
       );
 
@@ -1951,16 +2004,18 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     required Map<String, String> selectedCardNamesByPlayerId,
   }) async {
     final previewCards = previewFrenzyCards(
-      cards: effect.participantPlayerIds.map((playerId) {
-        final player = _playerById(session.gameState, playerId);
-        final selectedCardId = selectedCardIdsByPlayerId[playerId];
-
-        if (selectedCardId == null) {
-          throw StateError('Carta do Frenesi não encontrada para $playerId.');
-        }
-
-        return _cardById(player.hand, selectedCardId);
-      }),
+      cards: frenzyContributionCards(
+        gameState: session.gameState,
+        participantPlayerIds: effect.participantPlayerIds,
+        selectedCardByPlayerId: {
+          for (final playerId in effect.participantPlayerIds)
+            if (selectedCardIdsByPlayerId[playerId] != null)
+              playerId: _cardById(
+                _playerById(session.gameState, playerId).hand,
+                selectedCardIdsByPlayerId[playerId]!,
+              ),
+        },
+      ),
     );
 
     await _saveCurrentSession(
@@ -2268,6 +2323,335 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     }
   }
 
+  Future<void> selectBrokenMaskTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível escolher o alvo da Máscara Quebrada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveBrokenMaskCard({
+    required OnlineGameSession session,
+    required GameCard revealedCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || effect.targetPlayerId == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final targetPlayer = _playerById(session.gameState, effect.targetPlayerId!);
+      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            revealedCardId: revealedCard.id,
+            revealedCardName: revealedCard.name,
+            revealedCardTemplateId: revealedCard.templateId,
+            resultMessage:
+                '${actingPlayer.name} revelou ${revealedCard.name} da mão de ${targetPlayer.name}.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível revelar a carta da Máscara Quebrada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipBrokenMaskWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar a Máscara Quebrada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveUnfinishedBusinessTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final drewCard = resolveUnfinishedBusinessEffect(
+        gameState: session.gameState,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage: drewCard
+                ? '${target.name} comprou 1 carta do monte.'
+                : 'O monte estava vazio. ${target.name} não comprou carta.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver Assunto Inacabado: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipUnfinishedBusinessWithoutTarget(
+    OnlineGameSession session,
+  ) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar Assunto Inacabado: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> revealLullabyEffect(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final hints = resolveLullabyEffect(gameState: session.gameState);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          pendingEffect: effect.copyWith(
+            previewCardNames: hints,
+            completedPlayerIds: {
+              ...effect.completedPlayerIds,
+              effect.actingPlayerId,
+            }.toList(),
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível revelar A Canção de Ninar: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> finishLullabyPendingEffect(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      finishLullabyEffect(gameState: session.gameState);
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível concluir A Canção de Ninar: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveSealedCardTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final selectedCard = sealRandomCardFromHand(
+        gameState: session.gameState,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            revealedCardId: selectedCard.id,
+            revealedCardName: selectedCard.name,
+            revealedCardTemplateId: selectedCard.templateId,
+            resultMessage: session.gameState.roundFinished
+                ? session.gameState.roundResult?.reason ??
+                    '${target.name} teve uma carta selada.'
+                : playerHasSealedCards(target)
+                    ? '${target.name} teve uma carta da mão colocada virada para baixo à frente dele.'
+                    : 'A carta selada de ${target.name} virou a última carta disponível e voltou para a mão dele.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver A Carta Selada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipSealedCardWithoutTarget(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível encerrar A Carta Selada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   String _forcedDiscardResultMessage({
     required GameState gameState,
     required Player targetPlayer,
@@ -2369,7 +2753,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     try {
       if (everyoneAcknowledged &&
           (effect.type == OnlineEffectType.publicNotice ||
-              effect.type == OnlineEffectType.butler)) {
+              effect.type == OnlineEffectType.butler ||
+              effect.type == OnlineEffectType.brokenMask ||
+              effect.type == OnlineEffectType.unfinishedBusiness ||
+              effect.type == OnlineEffectType.sealedCard)) {
         session.gameState.moveToNextPlayer();
       }
 
@@ -2513,6 +2900,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       case OnlineEffectType.publicNotice:
       case OnlineEffectType.protectionCancel:
       case OnlineEffectType.butler:
+      case OnlineEffectType.brokenMask:
+      case OnlineEffectType.unfinishedBusiness:
+      case OnlineEffectType.sealedCard:
         return [effect.actingPlayerId];
       case OnlineEffectType.accomplice:
       case OnlineEffectType.poisonedCup:
@@ -2567,6 +2957,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       case OnlineEffectType.portrait:
         return [effect.actingPlayerId];
       case OnlineEffectType.spy:
+        return [effect.actingPlayerId];
+      case OnlineEffectType.lullaby:
         return [effect.actingPlayerId];
     }
   }
@@ -3206,6 +3598,45 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                         onSpyContinue: () {
                           finishSpyEffect(session);
                         },
+                        onBrokenMaskTargetSelected: (target) {
+                          selectBrokenMaskTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onBrokenMaskCardSelected: (card) {
+                          resolveBrokenMaskCard(
+                            session: session,
+                            revealedCard: card,
+                          );
+                        },
+                        onBrokenMaskWithoutTarget: () {
+                          skipBrokenMaskWithoutTarget(session);
+                        },
+                        onUnfinishedBusinessTargetSelected: (target) {
+                          resolveUnfinishedBusinessTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onUnfinishedBusinessWithoutTarget: () {
+                          skipUnfinishedBusinessWithoutTarget(session);
+                        },
+                        onLullabyReveal: () {
+                          revealLullabyEffect(session);
+                        },
+                        onLullabyContinue: () {
+                          finishLullabyPendingEffect(session);
+                        },
+                        onSealedCardTargetSelected: (target) {
+                          resolveSealedCardTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onSealedCardWithoutTarget: () {
+                          skipSealedCardWithoutTarget(session);
+                        },
                         onPublicNoticeSubmitted: (message) {
                           submitPublicNoticeMessage(
                             session: session,
@@ -3349,6 +3780,15 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onSpyFirstTargetSelected,
     required this.onSpySecondTargetSelected,
     required this.onSpyContinue,
+    required this.onBrokenMaskTargetSelected,
+    required this.onBrokenMaskCardSelected,
+    required this.onBrokenMaskWithoutTarget,
+    required this.onUnfinishedBusinessTargetSelected,
+    required this.onUnfinishedBusinessWithoutTarget,
+    required this.onLullabyReveal,
+    required this.onLullabyContinue,
+    required this.onSealedCardTargetSelected,
+    required this.onSealedCardWithoutTarget,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -3396,6 +3836,15 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final ValueChanged<Player> onSpyFirstTargetSelected;
   final ValueChanged<Player> onSpySecondTargetSelected;
   final VoidCallback onSpyContinue;
+  final ValueChanged<Player> onBrokenMaskTargetSelected;
+  final ValueChanged<GameCard> onBrokenMaskCardSelected;
+  final VoidCallback onBrokenMaskWithoutTarget;
+  final ValueChanged<Player> onUnfinishedBusinessTargetSelected;
+  final VoidCallback onUnfinishedBusinessWithoutTarget;
+  final VoidCallback onLullabyReveal;
+  final VoidCallback onLullabyContinue;
+  final ValueChanged<Player> onSealedCardTargetSelected;
+  final VoidCallback onSealedCardWithoutTarget;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -3580,6 +4029,42 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onFirstTargetSelected: onSpyFirstTargetSelected,
           onSecondTargetSelected: onSpySecondTargetSelected,
           onContinue: onSpyContinue,
+        );
+      case OnlineEffectType.brokenMask:
+        return _BrokenMaskPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onBrokenMaskTargetSelected,
+          onCardSelected: onBrokenMaskCardSelected,
+          onWithoutTarget: onBrokenMaskWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.unfinishedBusiness:
+        return _UnfinishedBusinessPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onUnfinishedBusinessTargetSelected,
+          onWithoutTarget: onUnfinishedBusinessWithoutTarget,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.lullaby:
+        return _LullabyPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onReveal: onLullabyReveal,
+          onContinue: onLullabyContinue,
+        );
+      case OnlineEffectType.sealedCard:
+        return _SealedCardPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onSealedCardTargetSelected,
+          onWithoutTarget: onSealedCardWithoutTarget,
+          onAcknowledge: onAcknowledge,
         );
     }
   }
@@ -4274,6 +4759,590 @@ class _SpyPendingEffectCard extends StatelessWidget {
             ] else
               Text(
                 '${actingPlayer.name} está observando cartas em segredo.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrokenMaskPendingEffectCard extends StatelessWidget {
+  const _BrokenMaskPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onCardSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = effect.targetPlayerId == null
+        ? null
+        : session.gameState.players.firstWhere(
+            (player) => player.id == effect.targetPlayerId,
+          );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      return player.id != actingPlayer.id && player.hand.isNotEmpty;
+    }).toList();
+    final effectWasResolved = effect.resultMessage != null;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.masks, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'A Máscara Quebrada',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.revealedCardName ?? 'Carta não identificada',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  color: Color(0xFFE7C76F),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (targetPlayer == null) ...[
+              if (availableTargets.isEmpty) ...[
+                const Text(
+                  'Nenhum jogador tem cartas na mão para a Máscara Quebrada.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                if (currentDeviceIsActingPlayer) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: isResolvingEffect ? null : onWithoutTarget,
+                    icon: const Icon(Icons.skip_next),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Continuar'),
+                    ),
+                  ),
+                ],
+              ] else if (currentDeviceIsActingPlayer) ...[
+                Text(
+                  '${actingPlayer.name}, escolha quem terá uma carta revelada para todos.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                ...availableTargets.map((target) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () => onTargetSelected(target),
+                      icon: const Icon(Icons.visibility),
+                      label: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(target.name),
+                      ),
+                    ),
+                  );
+                }),
+              ] else
+                Text(
+                  'Aguardando ${actingPlayer.name} escolher o alvo da Máscara Quebrada.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
+            ] else if (currentDeviceIsActingPlayer) ...[
+              Text(
+                '${actingPlayer.name}, escolha sem olhar uma carta da mão de ${targetPlayer.name}.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(targetPlayer.hand.length, (index) {
+                  final card = targetPlayer.hand[index];
+
+                  return SizedBox(
+                    width: 120,
+                    height: 96,
+                    child: OutlinedButton(
+                      onPressed: isResolvingEffect
+                          ? null
+                          : () => onCardSelected(card),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.help_outline),
+                          const SizedBox(height: 8),
+                          Text('Carta ${index + 1}'),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ] else
+              Text(
+                'Aguardando ${actingPlayer.name} revelar uma carta da mão de ${targetPlayer.name}.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnfinishedBusinessPendingEffectCard extends StatelessWidget {
+  const _UnfinishedBusinessPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final effectWasResolved = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players
+        .where((player) => player.id != actingPlayer.id)
+        .toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.add_card, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Assunto Inacabado',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (availableTargets.isEmpty) ...[
+              const Text(
+                'Não há outros jogadores para receber a carta do monte.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentDeviceIsActingPlayer) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutTarget,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (currentDeviceIsActingPlayer) ...[
+              Text(
+                '${actingPlayer.name}, escolha quem vai comprar 1 carta do monte.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...availableTargets.map((target) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: isResolvingEffect
+                        ? null
+                        : () => onTargetSelected(target),
+                    icon: const Icon(Icons.download),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(target.name),
+                    ),
+                  ),
+                );
+              }),
+            ] else
+              Text(
+                'Aguardando ${actingPlayer.name} escolher quem compra a carta extra.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LullabyPendingEffectCard extends StatelessWidget {
+  const _LullabyPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onReveal,
+    required this.onContinue,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final VoidCallback onReveal;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final informationWasRevealed = effect.completedPlayerIds.contains(
+      actingPlayer.id,
+    );
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.nightlight_round, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'A Canção de Ninar',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!currentDeviceIsActingPlayer)
+              Text(
+                'Somente ${actingPlayer.name} deve ver esta informação.',
+                style: const TextStyle(color: Colors.white60),
+              )
+            else if (!informationWasRevealed) ...[
+              const Text(
+                'O app vai revelar, em segredo, quem está com Detetive ou Totó.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onReveal,
+                icon: const Icon(Icons.visibility),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Revelar informação'),
+                ),
+              ),
+            ] else ...[
+              if (effect.previewCardNames.isEmpty)
+                const Text(
+                  'Ninguém está com Detetive ou Totó neste momento.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70),
+                )
+              else
+                ...effect.previewCardNames.map((hint) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      hint,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onContinue,
+                icon: const Icon(Icons.check_circle),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Continuar'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SealedCardPendingEffectCard extends StatelessWidget {
+  const _SealedCardPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onWithoutTarget,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onWithoutTarget;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final effectWasResolved = effect.resultMessage != null;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final availableTargets = session.gameState.players.where((player) {
+      return player.id != actingPlayer.id && player.hand.isNotEmpty;
+    }).toList();
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.lock, color: Color(0xFFE7C76F)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'A Carta Selada',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFE7C76F),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (effectWasResolved) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (availableTargets.isEmpty) ...[
+              const Text(
+                'Nenhum jogador tem cartas na mão para receber uma carta selada.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              if (currentDeviceIsActingPlayer) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: isResolvingEffect ? null : onWithoutTarget,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Continuar'),
+                  ),
+                ),
+              ],
+            ] else if (currentDeviceIsActingPlayer) ...[
+              Text(
+                '${actingPlayer.name}, escolha quem receberá uma carta virada para baixo à frente.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...availableTargets.map((target) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: isResolvingEffect
+                        ? null
+                        : () => onTargetSelected(target),
+                    icon: const Icon(Icons.lock),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text(target.name),
+                    ),
+                  ),
+                );
+              }),
+            ] else
+              Text(
+                'Aguardando ${actingPlayer.name} escolher quem receberá a carta selada.',
                 style: const TextStyle(color: Colors.white60),
               ),
           ],
@@ -5263,7 +6332,9 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
             ] else if (currentPlayerIsParticipant &&
                 !currentPlayerAlreadySelected) ...[
               Text(
-                '${currentPlayer.name}, escolha uma carta da sua mão para embaralhar.',
+                playerHasSealedCards(currentPlayer)
+                    ? '${currentPlayer.name}, sua Carta Selada entrará sozinha no Frenesi.'
+                    : '${currentPlayer.name}, escolha uma carta da sua mão para embaralhar.',
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 8),
@@ -5271,25 +6342,27 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
                 '$selectedCount de ${effect.participantPlayerIds.length} jogadores já escolheram.',
                 style: const TextStyle(color: Colors.white60),
               ),
-              const SizedBox(height: 12),
-              ...currentPlayer.hand.map((card) {
-                return Card(
-                  color: const Color(0xFF120818),
-                  child: ListTile(
-                    title: Text(
-                      card.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+              if (!playerHasSealedCards(currentPlayer)) ...[
+                const SizedBox(height: 12),
+                ...currentPlayer.hand.map((card) {
+                  return Card(
+                    color: const Color(0xFF120818),
+                    child: ListTile(
+                      title: Text(
+                        card.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(card.shortText),
+                      trailing: const Icon(Icons.shuffle),
+                      onTap: isResolvingEffect
+                          ? null
+                          : () {
+                              onCardSelected(card);
+                            },
                     ),
-                    subtitle: Text(card.shortText),
-                    trailing: const Icon(Icons.shuffle),
-                    onTap: isResolvingEffect
-                        ? null
-                        : () {
-                            onCardSelected(card);
-                          },
-                  ),
-                );
-              }),
+                  );
+                }),
+              ],
             ] else ...[
               Text(
                 currentPlayerAlreadySelected
@@ -7047,8 +8120,19 @@ class _OnlineTableCard extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: tablePlayer.playedCards.map((card) {
+                          final isFaceDown = card.isFaceDown;
+
                           return Chip(
-                            label: Text(card.name),
+                            avatar: isFaceDown
+                                ? const Icon(
+                                    Icons.lock,
+                                    size: 16,
+                                    color: Color(0xFFE7C76F),
+                                  )
+                                : null,
+                            label: Text(
+                              isFaceDown ? 'Carta selada' : card.name,
+                            ),
                             backgroundColor: const Color(0xFF120818),
                             side: const BorderSide(
                               color: Color(0xFFE7C76F),

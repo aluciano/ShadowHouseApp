@@ -190,6 +190,30 @@ void playCard({
     return;
   }
 
+  final brokenMaskWasPlayed = card.templateId == 'mascara_quebrada';
+
+  if (brokenMaskWasPlayed) {
+    return;
+  }
+
+  final unfinishedBusinessWasPlayed = card.templateId == 'assunto_inacabado';
+
+  if (unfinishedBusinessWasPlayed) {
+    return;
+  }
+
+  final lullabyWasPlayed = card.templateId == 'cancao_de_ninar';
+
+  if (lullabyWasPlayed) {
+    return;
+  }
+
+  final sealedCardWasPlayed = card.templateId == 'carta_selada';
+
+  if (sealedCardWasPlayed) {
+    return;
+  }
+
   final swapWasPlayed = card.templateId == 'trocar';
 
   if (swapWasPlayed) {
@@ -719,6 +743,40 @@ List<GameCard> previewFrenzyCards({
   return shuffledCards;
 }
 
+bool playerHasSealedCards(Player player) {
+  return player.playedCards.any((card) => card.isFaceDown);
+}
+
+List<GameCard> frenzyContributionCards({
+  required GameState gameState,
+  required Iterable<String> participantPlayerIds,
+  required Map<String, GameCard> selectedCardByPlayerId,
+}) {
+  final cards = <GameCard>[];
+
+  for (final playerId in participantPlayerIds) {
+    final player = gameState.players.firstWhere((item) => item.id == playerId);
+    final sealedCards = player.playedCards.where((card) => card.isFaceDown).toList();
+
+    if (sealedCards.isNotEmpty) {
+      cards.addAll(
+        sealedCards.map(
+          (card) => card.copyWith(isFaceDown: false),
+        ),
+      );
+      continue;
+    }
+
+    final selectedCard = selectedCardByPlayerId[playerId];
+
+    if (selectedCard != null) {
+      cards.add(selectedCard);
+    }
+  }
+
+  return cards;
+}
+
 class FrenzyResolution {
   const FrenzyResolution({
     required this.receivedCardCountByPlayerId,
@@ -731,39 +789,69 @@ class FrenzyResolution {
 
 FrenzyResolution resolveFrenzyEffect({
   required GameState gameState,
+  required List<String> participantPlayerIds,
   required Map<String, GameCard> selectedCardByPlayerId,
 }) {
   final random = Random();
   final chosenCards = <GameCard>[];
-  final participantIds = selectedCardByPlayerId.keys.toList();
   final receivedCardsCountByPlayerId = <String, int>{};
   final receivedCardNameByPlayerId = <String, String>{};
+  final contributionCountByPlayerId = <String, int>{};
 
   for (final player in gameState.players) {
     receivedCardsCountByPlayerId[player.id] = 0;
+    contributionCountByPlayerId[player.id] = 0;
   }
 
-  for (final entry in selectedCardByPlayerId.entries) {
+  for (final playerId in participantPlayerIds) {
     final player = gameState.players.firstWhere(
-      (item) => item.id == entry.key,
+      (item) => item.id == playerId,
     );
+    final sealedCards = player.playedCards.where((card) => card.isFaceDown).toList();
 
-    player.hand.removeWhere((card) => card.id == entry.value.id);
-    chosenCards.add(entry.value);
+    if (sealedCards.isNotEmpty) {
+      player.playedCards.removeWhere((card) => card.isFaceDown);
+      chosenCards.addAll(
+        sealedCards.map((card) => card.copyWith(isFaceDown: false)),
+      );
+      contributionCountByPlayerId[player.id] =
+          (contributionCountByPlayerId[player.id] ?? 0) + sealedCards.length;
+      continue;
+    }
+
+    final selectedCard = selectedCardByPlayerId[playerId];
+
+    if (selectedCard != null) {
+      player.hand.removeWhere((card) => card.id == selectedCard.id);
+      chosenCards.add(selectedCard);
+      contributionCountByPlayerId[player.id] =
+          (contributionCountByPlayerId[player.id] ?? 0) + 1;
+    }
   }
 
   chosenCards.shuffle(random);
 
-  for (int index = 0; index < participantIds.length; index++) {
-    final player = gameState.players.firstWhere(
-      (item) => item.id == participantIds[index],
-    );
-    final receivedCard = chosenCards[index];
+  var cardIndex = 0;
 
-    player.hand.add(receivedCard);
-    receivedCardsCountByPlayerId[player.id] =
-        (receivedCardsCountByPlayerId[player.id] ?? 0) + 1;
-    receivedCardNameByPlayerId[player.id] = receivedCard.name;
+  for (final playerId in participantPlayerIds) {
+    final player = gameState.players.firstWhere(
+      (item) => item.id == playerId,
+    );
+    final contributionCount = contributionCountByPlayerId[player.id] ?? 0;
+    final receivedNames = <String>[];
+
+    for (var count = 0; count < contributionCount; count++) {
+      final receivedCard = chosenCards[cardIndex++];
+
+      player.hand.add(receivedCard);
+      receivedCardsCountByPlayerId[player.id] =
+          (receivedCardsCountByPlayerId[player.id] ?? 0) + 1;
+      receivedNames.add(receivedCard.name);
+    }
+
+    if (receivedNames.isNotEmpty) {
+      receivedCardNameByPlayerId[player.id] = receivedNames.join(', ');
+    }
   }
 
   gameState.moveToNextPlayer();
@@ -772,4 +860,71 @@ FrenzyResolution resolveFrenzyEffect({
     receivedCardCountByPlayerId: receivedCardsCountByPlayerId,
     receivedCardNameByPlayerId: receivedCardNameByPlayerId,
   );
+}
+
+void resolveBrokenMaskEffect({
+  required GameState gameState,
+}) {
+  gameState.moveToNextPlayer();
+}
+
+bool resolveUnfinishedBusinessEffect({
+  required GameState gameState,
+  required Player targetPlayer,
+}) {
+  if (gameState.deck.isNotEmpty) {
+    targetPlayer.hand.add(gameState.deck.removeAt(0));
+    gameState.moveToNextPlayer();
+    return true;
+  }
+
+  gameState.moveToNextPlayer();
+  return false;
+}
+
+List<String> resolveLullabyEffect({
+  required GameState gameState,
+}) {
+  final hints = <String>[];
+
+  for (final player in gameState.players) {
+    final hasDetective = player.hand.any(
+      (card) => card.templateId == 'detetive',
+    );
+    final hasToto = player.hand.any(
+      (card) => card.templateId == 'toto',
+    );
+
+    if (hasDetective && hasToto) {
+      hints.add('${player.name} está com Detetive e Totó.');
+    } else if (hasDetective) {
+      hints.add('${player.name} está com Detetive.');
+    } else if (hasToto) {
+      hints.add('${player.name} está com Totó.');
+    }
+  }
+
+  return hints;
+}
+
+void finishLullabyEffect({
+  required GameState gameState,
+}) {
+  gameState.moveToNextPlayer();
+}
+
+GameCard sealRandomCardFromHand({
+  required GameState gameState,
+  required Player targetPlayer,
+}) {
+  final random = Random();
+  final selectedCard = targetPlayer.hand[random.nextInt(targetPlayer.hand.length)];
+
+  targetPlayer.hand.removeWhere((card) => card.id == selectedCard.id);
+  targetPlayer.playedCards.add(
+    selectedCard.copyWith(isFaceDown: true),
+  );
+
+  gameState.moveToNextPlayer();
+  return selectedCard;
 }

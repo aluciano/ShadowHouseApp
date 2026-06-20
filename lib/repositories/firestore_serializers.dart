@@ -388,6 +388,7 @@ Map<String, Object?> gameCardToFirestore(GameCard card) {
     'type': card.type.name,
     'shortText': card.shortText,
     'wasDiscarded': card.wasDiscarded,
+    'isFaceDown': card.isFaceDown,
   };
 }
 
@@ -403,6 +404,7 @@ GameCard gameCardFromFirestore(Map<String, dynamic> data) {
     ),
     shortText: data['shortText'] as String,
     wasDiscarded: data['wasDiscarded'] as bool? ?? false,
+    isFaceDown: data['isFaceDown'] as bool? ?? false,
   );
 }
 

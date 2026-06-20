@@ -8,6 +8,7 @@ class GameCard {
     required this.type,
     required this.shortText,
     this.wasDiscarded = false,
+    this.isFaceDown = false,
   });
 
   final String id;
@@ -21,9 +22,11 @@ class GameCard {
   ///
   /// Cartas descartadas ficam visíveis na mesa, mas seus efeitos são ignorados.
   final bool wasDiscarded;
+  final bool isFaceDown;
 
   GameCard copyWith({
     bool? wasDiscarded,
+    bool? isFaceDown,
   }) {
     return GameCard(
       id: id,
@@ -32,6 +35,7 @@ class GameCard {
       type: type,
       shortText: shortText,
       wasDiscarded: wasDiscarded ?? this.wasDiscarded,
+      isFaceDown: isFaceDown ?? this.isFaceDown,
     );
   }
 }

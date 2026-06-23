@@ -1,3 +1,5 @@
+import 'game_card.dart';
+
 enum OnlineEffectType {
   detective,
   toto,
@@ -22,6 +24,10 @@ enum OnlineEffectType {
   secretOath,
   silence,
   betrayal,
+  threeDestinies,
+  ghostCopy,
+  pianoSetup,
+  pianoExecution,
 }
 
 class OnlinePendingEffect {
@@ -29,6 +35,7 @@ class OnlinePendingEffect {
     required this.type,
     required this.actingPlayerId,
     required this.cardName,
+    this.resolverPlayerId,
     this.allowSelfTarget = false,
     this.targetPlayerId,
     this.revealedCardId,
@@ -44,6 +51,7 @@ class OnlinePendingEffect {
     this.receivedCardCountByPlayerId = const {},
     this.receivedCardNamesByPlayerId = const {},
     this.previewCardNames = const [],
+    this.offeredCards = const [],
     this.resultMessage,
     this.acknowledgedPlayerIds = const [],
   });
@@ -51,6 +59,7 @@ class OnlinePendingEffect {
   final OnlineEffectType type;
   final String actingPlayerId;
   final String cardName;
+  final String? resolverPlayerId;
   final bool allowSelfTarget;
   final String? targetPlayerId;
   final String? revealedCardId;
@@ -66,6 +75,7 @@ class OnlinePendingEffect {
   final Map<String, int> receivedCardCountByPlayerId;
   final Map<String, String> receivedCardNamesByPlayerId;
   final List<String> previewCardNames;
+  final List<GameCard> offeredCards;
   final String? resultMessage;
   final List<String> acknowledgedPlayerIds;
 
@@ -75,6 +85,7 @@ class OnlinePendingEffect {
     OnlineEffectType? type,
     String? actingPlayerId,
     String? cardName,
+    String? resolverPlayerId,
     bool? allowSelfTarget,
     String? targetPlayerId,
     String? revealedCardId,
@@ -90,6 +101,7 @@ class OnlinePendingEffect {
     Map<String, int>? receivedCardCountByPlayerId,
     Map<String, String>? receivedCardNamesByPlayerId,
     List<String>? previewCardNames,
+    List<GameCard>? offeredCards,
     String? resultMessage,
     List<String>? acknowledgedPlayerIds,
   }) {
@@ -97,6 +109,7 @@ class OnlinePendingEffect {
       type: type ?? this.type,
       actingPlayerId: actingPlayerId ?? this.actingPlayerId,
       cardName: cardName ?? this.cardName,
+      resolverPlayerId: resolverPlayerId ?? this.resolverPlayerId,
       allowSelfTarget: allowSelfTarget ?? this.allowSelfTarget,
       targetPlayerId: targetPlayerId ?? this.targetPlayerId,
       revealedCardId: revealedCardId ?? this.revealedCardId,
@@ -118,6 +131,7 @@ class OnlinePendingEffect {
       receivedCardNamesByPlayerId:
           receivedCardNamesByPlayerId ?? this.receivedCardNamesByPlayerId,
       previewCardNames: previewCardNames ?? this.previewCardNames,
+      offeredCards: offeredCards ?? this.offeredCards,
       resultMessage: resultMessage ?? this.resultMessage,
       acknowledgedPlayerIds:
           acknowledgedPlayerIds ?? this.acknowledgedPlayerIds,

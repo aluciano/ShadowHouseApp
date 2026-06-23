@@ -112,10 +112,42 @@ void playCard({
   required GameState gameState,
   required GameCard card,
 }) {
+  _applyPlayedCard(
+    gameState: gameState,
+    card: card,
+    removeFromCurrentPlayerHand: true,
+    addCardToCurrentPlayerTable: true,
+  );
+}
+
+void playExternalCard({
+  required GameState gameState,
+  required GameCard card,
+  bool addCardToCurrentPlayerTable = true,
+}) {
+  _applyPlayedCard(
+    gameState: gameState,
+    card: card,
+    removeFromCurrentPlayerHand: false,
+    addCardToCurrentPlayerTable: addCardToCurrentPlayerTable,
+  );
+}
+
+void _applyPlayedCard({
+  required GameState gameState,
+  required GameCard card,
+  required bool removeFromCurrentPlayerHand,
+  required bool addCardToCurrentPlayerTable,
+}) {
   final currentPlayer = gameState.currentPlayer;
 
-  currentPlayer.hand.removeWhere((item) => item.id == card.id);
-  currentPlayer.playedCards.add(card);
+  if (removeFromCurrentPlayerHand) {
+    currentPlayer.hand.removeWhere((item) => item.id == card.id);
+  }
+
+  if (addCardToCurrentPlayerTable) {
+    currentPlayer.playedCards.add(card);
+  }
 
   final accompliceWasPlayed = card.templateId == 'cumplice';
 
@@ -178,6 +210,12 @@ void playCard({
     return;
   }
 
+  final ghostWasPlayed = card.templateId == 'fantasma_do_visconde';
+
+  if (ghostWasPlayed) {
+    return;
+  }
+
   final witnessWasPlayed = card.templateId == 'testemunha';
 
   if (witnessWasPlayed) {
@@ -229,6 +267,18 @@ void playCard({
   final betrayalWasPlayed = card.templateId == 'traicao_no_salao';
 
   if (betrayalWasPlayed) {
+    return;
+  }
+
+  final threeDestiniesWasPlayed = card.templateId == 'tres_destinos';
+
+  if (threeDestiniesWasPlayed) {
+    return;
+  }
+
+  final pianoWasPlayed = card.templateId == 'piano_desafinado';
+
+  if (pianoWasPlayed) {
     return;
   }
 
@@ -848,6 +898,82 @@ bool isDirectQuestionCardBlocked({
   return card.templateId == 'detetive' || card.templateId == 'toto';
 }
 
+void schedulePianoEffect({
+  required GameState gameState,
+  required Player actingPlayer,
+  required Player targetPlayer,
+}) {
+  gameState.pianoControllerPlayerId = actingPlayer.id;
+  gameState.pianoTargetPlayerId = targetPlayer.id;
+  gameState.moveToNextPlayer();
+}
+
+void clearScheduledPianoEffect({
+  required GameState gameState,
+}) {
+  gameState.pianoControllerPlayerId = null;
+  gameState.pianoTargetPlayerId = null;
+}
+
+class PianoForcedPlayResult {
+  const PianoForcedPlayResult({
+    required this.playedCard,
+    this.revealedGuiltyCard,
+  });
+
+  final GameCard playedCard;
+  final GameCard? revealedGuiltyCard;
+}
+
+PianoForcedPlayResult resolvePianoForcedPlay({
+  required GameState gameState,
+}) {
+  final targetPlayer = gameState.currentPlayer;
+  final random = Random();
+  final handCards = List<GameCard>.from(targetPlayer.hand);
+
+  if (handCards.isEmpty) {
+    throw StateError('O jogador alvo do Piano Desafinado não tem cartas na mão.');
+  }
+
+  GameCard? guiltyCard;
+  for (final card in handCards) {
+    if (card.templateId == 'culpado') {
+      guiltyCard = card;
+      break;
+    }
+  }
+  GameCard? revealedGuiltyCard;
+  late final GameCard playedCard;
+
+  if (handCards.length == 1 && guiltyCard != null) {
+    playedCard = guiltyCard;
+  } else {
+    final randomCard = handCards[random.nextInt(handCards.length)];
+
+    if (randomCard.templateId == 'culpado' && guiltyCard != null) {
+      revealedGuiltyCard = guiltyCard;
+      final alternativeCards = handCards
+          .where((card) => card.templateId != 'culpado')
+          .toList();
+      playedCard = alternativeCards[random.nextInt(alternativeCards.length)];
+    } else {
+      playedCard = randomCard;
+    }
+  }
+
+  clearScheduledPianoEffect(gameState: gameState);
+  playCard(
+    gameState: gameState,
+    card: playedCard,
+  );
+
+  return PianoForcedPlayResult(
+    playedCard: playedCard,
+    revealedGuiltyCard: revealedGuiltyCard,
+  );
+}
+
 void resolveSecretOathEffect({
   required GameState gameState,
   required Player actingPlayer,
@@ -856,6 +982,29 @@ void resolveSecretOathEffect({
   gameState.secretOathPlayerId = actingPlayer.id;
   gameState.secretOathPartnerPlayerId = targetPlayer.id;
   gameState.moveToNextPlayer();
+}
+
+List<GameCard> drawCardsFromDeck({
+  required GameState gameState,
+  int count = 1,
+}) {
+  final drawCount = min(count, gameState.deck.length);
+  final drawnCards = gameState.deck.take(drawCount).toList();
+
+  if (drawnCards.isNotEmpty) {
+    gameState.deck.removeRange(0, drawCount);
+  }
+
+  return drawnCards;
+}
+
+void placeCardsAsNoEffect({
+  required Player player,
+  required Iterable<GameCard> cards,
+}) {
+  player.playedCards.addAll(
+    cards.map((card) => card.copyWith(wasDiscarded: true)),
+  );
 }
 
 void resolveSilenceEffect({

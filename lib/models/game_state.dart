@@ -15,6 +15,8 @@ class GameState {
     this.silenceOwnerPlayerId,
     this.secretOathPlayerId,
     this.secretOathPartnerPlayerId,
+    this.pianoControllerPlayerId,
+    this.pianoTargetPlayerId,
   });
 
   final GameSetup setup;
@@ -28,6 +30,8 @@ class GameState {
   String? silenceOwnerPlayerId;
   String? secretOathPlayerId;
   String? secretOathPartnerPlayerId;
+  String? pianoControllerPlayerId;
+  String? pianoTargetPlayerId;
 
   Player get currentPlayer => players[currentPlayerIndex];
 
@@ -76,4 +80,10 @@ class GameState {
 
   bool get hasSecretOath =>
       secretOathPlayerId != null && secretOathPartnerPlayerId != null;
+
+  bool get hasPendingPiano =>
+      pianoControllerPlayerId != null && pianoTargetPlayerId != null;
+
+  bool get currentTurnIsUnderPiano =>
+      hasPendingPiano && currentPlayer.id == pianoTargetPlayerId;
 }

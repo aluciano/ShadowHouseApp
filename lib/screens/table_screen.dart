@@ -53,6 +53,18 @@ class TableScreen extends StatelessWidget {
       );
     }
 
+    if (gameState.hasPendingPiano) {
+      final controllerPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.pianoControllerPlayerId,
+      );
+      final targetPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.pianoTargetPlayerId,
+      );
+      effects.add(
+        'O Piano Desafinado: na próxima vez de ${targetPlayer.name}, ${controllerPlayer.name} jogará uma carta aleatória por esse jogador.',
+      );
+    }
+
     return effects;
   }
 

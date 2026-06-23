@@ -116,6 +116,8 @@ GameState _useOnlinePlayerIds(
     silenceOwnerPlayerId: gameState.silenceOwnerPlayerId,
     secretOathPlayerId: gameState.secretOathPlayerId,
     secretOathPartnerPlayerId: gameState.secretOathPartnerPlayerId,
+    pianoControllerPlayerId: gameState.pianoControllerPlayerId,
+    pianoTargetPlayerId: gameState.pianoTargetPlayerId,
     roundResult: gameState.roundResult,
   );
 }

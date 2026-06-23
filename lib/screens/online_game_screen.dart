@@ -64,6 +64,18 @@ Set<String> _playedTemplateIds(GameState gameState) {
       .toSet();
 }
 
+List<GameCard> _ghostCopySourceCards(GameState gameState) {
+  return gameState.players
+      .expand((player) => player.playedCards)
+      .where((card) {
+        return !card.wasDiscarded &&
+            !card.isFaceDown &&
+            card.templateId != 'primeiro_na_cena' &&
+            card.templateId != 'culpado';
+      })
+      .toList();
+}
+
 class OnlineGameScreen extends StatefulWidget {
   const OnlineGameScreen({
     super.key,
@@ -335,7 +347,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       case OnlineEffectType.frenzy:
         final participantPlayerIds = _frenzyParticipantPlayerIds(gameState);
         final autoCompletedPlayerIds = participantPlayerIds.where((playerId) {
-          final player = gameState.players.firstWhere((item) => item.id == playerId);
+          final player = gameState.players.firstWhere(
+            (item) => item.id == playerId,
+          );
 
           return playerHasSealedCards(player);
         }).toList();
@@ -343,6 +357,14 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return effect.copyWith(
           participantPlayerIds: participantPlayerIds,
           completedPlayerIds: autoCompletedPlayerIds,
+        );
+      case OnlineEffectType.threeDestinies:
+        return effect.copyWith(
+          offeredCards: drawCardsFromDeck(gameState: gameState, count: 3),
+        );
+      case OnlineEffectType.ghostCopy:
+        return effect.copyWith(
+          offeredCards: _ghostCopySourceCards(gameState),
         );
       default:
         return effect;
@@ -695,6 +717,30 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     if (card.templateId == 'traicao_no_salao') {
       return OnlinePendingEffect(
         type: OnlineEffectType.betrayal,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'tres_destinos') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.threeDestinies,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'fantasma_do_visconde') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.ghostCopy,
+        actingPlayerId: actingPlayerId,
+        cardName: card.name,
+      );
+    }
+
+    if (card.templateId == 'piano_desafinado') {
+      return OnlinePendingEffect(
+        type: OnlineEffectType.pianoSetup,
         actingPlayerId: actingPlayerId,
         cardName: card.name,
       );
@@ -2921,6 +2967,322 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     }
   }
 
+  Future<void> _saveAfterExternalOnlineCard({
+    required OnlineGameSession session,
+    required Player actingPlayer,
+    required GameCard card,
+    String? systemMessage,
+  }) async {
+    final nextPendingEffect = _preparePendingEffect(
+      gameState: session.gameState,
+      effect: _pendingEffectForCard(
+        card: card,
+        actingPlayerId: actingPlayer.id,
+      ),
+    );
+    final updatedRoom = systemMessage == null
+        ? session.room
+        : session.room.copyWith(
+            systemMessage: systemMessage,
+            systemMessageAt: DateTime.now(),
+          );
+    final updatedSession = session.copyWith(
+      room: updatedRoom,
+      gameState: session.gameState,
+      activeProtections: _activeProtectionsAfterCard(
+        session: session,
+        gameState: session.gameState,
+        player: actingPlayer,
+        card: card,
+      ),
+    );
+
+    await _saveCurrentSession(
+      nextPendingEffect == null
+          ? updatedSession.copyWith(clearPendingEffect: true)
+          : updatedSession.copyWith(pendingEffect: nextPendingEffect),
+    );
+  }
+
+  Future<void> resolveThreeDestiniesCard({
+    required OnlineGameSession session,
+    required GameCard selectedCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final noEffectCards = effect.offeredCards.where((card) {
+        return card.id != selectedCard.id;
+      });
+
+      placeCardsAsNoEffect(
+        player: actingPlayer,
+        cards: noEffectCards,
+      );
+      playExternalCard(
+        gameState: session.gameState,
+        card: selectedCard,
+      );
+
+      await _saveAfterExternalOnlineCard(
+        session: session,
+        actingPlayer: actingPlayer,
+        card: selectedCard,
+        systemMessage:
+            '${actingPlayer.name} escolheu ${selectedCard.name} em Três Destinos.',
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver Três Destinos: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipThreeDestiniesWithoutCards(
+    OnlineGameSession session,
+  ) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível continuar: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolveGhostCopyCard({
+    required OnlineGameSession session,
+    required GameCard sourceCard,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    if (sourceCard.templateId == 'fantasma_do_visconde') {
+      setState(() {
+        isResolvingEffect = true;
+      });
+
+      try {
+        await _saveCurrentSession(
+          session.copyWith(
+            pendingEffect: effect.copyWith(
+              offeredCards: effect.offeredCards.where((card) {
+                return card.id != sourceCard.id;
+              }).toList(),
+            ),
+          ),
+        );
+        showMessage(
+          'Escolha a carta cujo efeito o Fantasma copiado deverá copiar.',
+        );
+      } catch (error) {
+        showMessage('Não foi possível preparar a cópia do Fantasma: $error');
+      } finally {
+        if (mounted) {
+          setState(() {
+            isResolvingEffect = false;
+          });
+        }
+      }
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+
+      playExternalCard(
+        gameState: session.gameState,
+        card: sourceCard,
+        addCardToCurrentPlayerTable: false,
+      );
+
+      await _saveAfterExternalOnlineCard(
+        session: session,
+        actingPlayer: actingPlayer,
+        card: sourceCard,
+        systemMessage:
+            '${actingPlayer.name} copiou ${sourceCard.name} com O Fantasma do Visconde.',
+      );
+    } catch (error) {
+      showMessage('Não foi possível copiar o efeito: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> skipGhostCopyWithoutSource(
+    OnlineGameSession session,
+  ) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          clearPendingEffect: true,
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível continuar: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolvePianoSetupTarget({
+    required OnlineGameSession session,
+    required Player target,
+  }) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+
+      schedulePianoEffect(
+        gameState: session.gameState,
+        actingPlayer: actingPlayer,
+        targetPlayer: target,
+      );
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          pendingEffect: effect.copyWith(
+            targetPlayerId: target.id,
+            resultMessage:
+                '${target.name} terá a próxima vez controlada por ${actingPlayer.name}.',
+            acknowledgedPlayerIds: const [],
+          ),
+        ),
+      );
+    } catch (error) {
+      showMessage('Não foi possível preparar O Piano Desafinado: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
+  Future<void> resolvePianoExecution(OnlineGameSession session) async {
+    final effect = session.pendingEffect;
+
+    if (effect == null || isResolvingEffect) {
+      return;
+    }
+
+    setState(() {
+      isResolvingEffect = true;
+    });
+
+    try {
+      final controllerPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId ?? session.gameState.currentPlayer.id,
+      );
+      final result = resolvePianoForcedPlay(gameState: session.gameState);
+      final revealedGuiltyText = result.revealedGuiltyCard == null
+          ? ''
+          : ' O Culpado foi revelado, voltou para a mão de ${targetPlayer.name} e outra carta foi jogada.';
+
+      await _saveAfterExternalOnlineCard(
+        session: session,
+        actingPlayer: targetPlayer,
+        card: result.playedCard,
+        systemMessage:
+            '${controllerPlayer.name} jogou ${result.playedCard.name} por ${targetPlayer.name}.$revealedGuiltyText',
+      );
+    } catch (error) {
+      showMessage('Não foi possível resolver O Piano Desafinado: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResolvingEffect = false;
+        });
+      }
+    }
+  }
+
   Future<void> acknowledgePendingEffect(OnlineGameSession session) async {
     final effect = session.pendingEffect;
 
@@ -3096,6 +3458,11 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       case OnlineEffectType.secretOath:
       case OnlineEffectType.betrayal:
       case OnlineEffectType.silence:
+      case OnlineEffectType.threeDestinies:
+      case OnlineEffectType.ghostCopy:
+      case OnlineEffectType.pianoSetup:
+        return [effect.actingPlayerId];
+      case OnlineEffectType.pianoExecution:
         return [effect.actingPlayerId];
       case OnlineEffectType.accomplice:
       case OnlineEffectType.poisonedCup:
@@ -3192,6 +3559,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       effect.completedPlayerIds.length.toString(),
       effect.acknowledgedPlayerIds.length.toString(),
       effect.previewCardNames.length.toString(),
+      effect.offeredCards.length.toString(),
+      effect.resolverPlayerId ?? '',
     ].join('|');
   }
 
@@ -3239,15 +3608,25 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   String? _pendingEffectReconcileToken(OnlineGameSession session) {
     final effect = session.pendingEffect;
 
-    if (effect == null) {
-      return null;
-    }
-
     final currentDeviceIsHost =
         widget.currentPlayerId == session.room.hostPlayerId;
 
     if (!currentDeviceIsHost || isResolvingEffect) {
       return null;
+    }
+
+    if (effect == null) {
+      if (!session.gameState.currentTurnIsUnderPiano) {
+        return null;
+      }
+
+      return [
+        'pianoExecution',
+        session.gameState.pianoControllerPlayerId ?? '',
+        session.gameState.pianoTargetPlayerId ?? '',
+        session.gameState.currentPlayer.id,
+        session.gameState.currentPlayerIndex.toString(),
+      ].join('|');
     }
 
     final everyoneCompleted = effect.participantPlayerIds.isNotEmpty &&
@@ -3303,17 +3682,34 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     _lastPendingEffectReconcileToken = token;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || isResolvingEffect || session.pendingEffect == null) {
+      if (!mounted || isResolvingEffect) {
         return;
       }
-
-      final effect = session.pendingEffect!;
 
       setState(() {
         isResolvingEffect = true;
       });
 
       try {
+        final effect = session.pendingEffect;
+
+        if (effect == null) {
+          if (session.gameState.currentTurnIsUnderPiano) {
+            await _saveCurrentSession(
+              session.copyWith(
+                pendingEffect: OnlinePendingEffect(
+                  type: OnlineEffectType.pianoExecution,
+                  actingPlayerId: session.gameState.pianoControllerPlayerId!,
+                  targetPlayerId: session.gameState.currentPlayer.id,
+                  cardName: 'O Piano Desafinado',
+                ),
+              ),
+            );
+          }
+
+          return;
+        }
+
         if ((effect.type == OnlineEffectType.share ||
                 effect.type == OnlineEffectType.frenzy) &&
             effect.participantPlayerIds.isEmpty &&
@@ -3848,6 +4244,33 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                         onBetrayalWithoutTarget: () {
                           skipBetrayalWithoutTarget(session);
                         },
+                        onThreeDestiniesCardSelected: (card) {
+                          resolveThreeDestiniesCard(
+                            session: session,
+                            selectedCard: card,
+                          );
+                        },
+                        onThreeDestiniesWithoutCards: () {
+                          skipThreeDestiniesWithoutCards(session);
+                        },
+                        onGhostSourceSelected: (card) {
+                          resolveGhostCopyCard(
+                            session: session,
+                            sourceCard: card,
+                          );
+                        },
+                        onGhostWithoutSource: () {
+                          skipGhostCopyWithoutSource(session);
+                        },
+                        onPianoSetupTargetSelected: (target) {
+                          resolvePianoSetupTarget(
+                            session: session,
+                            target: target,
+                          );
+                        },
+                        onPianoExecution: () {
+                          resolvePianoExecution(session);
+                        },
                         onPublicNoticeSubmitted: (message) {
                           submitPublicNoticeMessage(
                             session: session,
@@ -4004,6 +4427,12 @@ class _OnlinePendingEffectCard extends StatelessWidget {
     required this.onSilenceContinue,
     required this.onBetrayalTargetSelected,
     required this.onBetrayalWithoutTarget,
+    required this.onThreeDestiniesCardSelected,
+    required this.onThreeDestiniesWithoutCards,
+    required this.onGhostSourceSelected,
+    required this.onGhostWithoutSource,
+    required this.onPianoSetupTargetSelected,
+    required this.onPianoExecution,
     required this.onPublicNoticeSubmitted,
     required this.onPublicNoticeSkipped,
     required this.onAcknowledge,
@@ -4064,6 +4493,12 @@ class _OnlinePendingEffectCard extends StatelessWidget {
   final VoidCallback onSilenceContinue;
   final ValueChanged<Player> onBetrayalTargetSelected;
   final VoidCallback onBetrayalWithoutTarget;
+  final ValueChanged<GameCard> onThreeDestiniesCardSelected;
+  final VoidCallback onThreeDestiniesWithoutCards;
+  final ValueChanged<GameCard> onGhostSourceSelected;
+  final VoidCallback onGhostWithoutSource;
+  final ValueChanged<Player> onPianoSetupTargetSelected;
+  final VoidCallback onPianoExecution;
   final ValueChanged<String> onPublicNoticeSubmitted;
   final VoidCallback onPublicNoticeSkipped;
   final VoidCallback onAcknowledge;
@@ -4310,7 +4745,417 @@ class _OnlinePendingEffectCard extends StatelessWidget {
           onWithoutTarget: onBetrayalWithoutTarget,
           onAcknowledge: onAcknowledge,
         );
+      case OnlineEffectType.threeDestinies:
+        return _ThreeDestiniesPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onCardSelected: onThreeDestiniesCardSelected,
+          onWithoutCards: onThreeDestiniesWithoutCards,
+        );
+      case OnlineEffectType.ghostCopy:
+        return _GhostCopyPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onSourceSelected: onGhostSourceSelected,
+          onWithoutSource: onGhostWithoutSource,
+        );
+      case OnlineEffectType.pianoSetup:
+        return _PianoSetupPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onTargetSelected: onPianoSetupTargetSelected,
+          onAcknowledge: onAcknowledge,
+        );
+      case OnlineEffectType.pianoExecution:
+        return _PianoExecutionPendingEffectCard(
+          session: session,
+          currentPlayerId: currentPlayerId,
+          isResolvingEffect: isResolvingEffect,
+          onExecute: onPianoExecution,
+        );
     }
+  }
+}
+
+class _ThreeDestiniesPendingEffectCard extends StatelessWidget {
+  const _ThreeDestiniesPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onCardSelected,
+    required this.onWithoutCards,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onCardSelected;
+  final VoidCallback onWithoutCards;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _PendingEffectTitle(
+              icon: Icons.alt_route,
+              title: 'Três Destinos',
+            ),
+            const SizedBox(height: 12),
+            if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} escolher uma carta para resolver.',
+                style: const TextStyle(color: Colors.white70),
+              )
+            else if (effect.offeredCards.isEmpty) ...[
+              const Text(
+                'Não há cartas no monte. O efeito será ignorado.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onWithoutCards,
+                icon: const Icon(Icons.skip_next),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Continuar'),
+                ),
+              ),
+            ] else ...[
+              const Text(
+                'Escolha uma carta para baixar e resolver. As outras ficarão à sua frente sem efeito.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...effect.offeredCards.map((card) {
+                return Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    title: Text(
+                      card.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(card.shortText),
+                    trailing: const Icon(Icons.play_arrow),
+                    onTap: isResolvingEffect
+                        ? null
+                        : () {
+                            onCardSelected(card);
+                          },
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GhostCopyPendingEffectCard extends StatelessWidget {
+  const _GhostCopyPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onSourceSelected,
+    required this.onWithoutSource,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<GameCard> onSourceSelected;
+  final VoidCallback onWithoutSource;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _PendingEffectTitle(
+              icon: Icons.auto_fix_high,
+              title: 'O Fantasma do Visconde',
+            ),
+            const SizedBox(height: 12),
+            if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} escolher uma carta já jogada para copiar.',
+                style: const TextStyle(color: Colors.white70),
+              )
+            else if (effect.offeredCards.isEmpty) ...[
+              const Text(
+                'Não há cartas válidas para copiar.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onWithoutSource,
+                icon: const Icon(Icons.skip_next),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Continuar'),
+                ),
+              ),
+            ] else ...[
+              const Text(
+                'Escolha uma carta já jogada à frente de qualquer jogador. Culpado e Primeiro na Cena não podem ser copiados.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...effect.offeredCards.map((card) {
+                return Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    title: Text(
+                      card.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(card.shortText),
+                    trailing: const Icon(Icons.copy),
+                    onTap: isResolvingEffect
+                        ? null
+                        : () {
+                            onSourceSelected(card);
+                          },
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PianoSetupPendingEffectCard extends StatelessWidget {
+  const _PianoSetupPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onTargetSelected,
+    required this.onAcknowledge,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final ValueChanged<Player> onTargetSelected;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final actingPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
+    final expectedViewerIds = session.room.players
+        .where((player) => !player.id.startsWith('placeholder_player_'))
+        .map((player) => player.id)
+        .toList();
+    final acknowledgedCount =
+        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final alreadyAcknowledged =
+        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _PendingEffectTitle(
+              icon: Icons.queue_music,
+              title: 'O Piano Desafinado',
+            ),
+            const SizedBox(height: 12),
+            if (effect.resultMessage != null) ...[
+              Text(
+                effect.resultMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '$acknowledgedCount de ${expectedViewerIds.length} jogadores visualizaram.',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: alreadyAcknowledged || isResolvingEffect
+                    ? null
+                    : onAcknowledge,
+                icon: Icon(
+                  alreadyAcknowledged
+                      ? Icons.check_circle
+                      : Icons.visibility,
+                ),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    alreadyAcknowledged
+                        ? 'Você já visualizou'
+                        : 'Confirmar visualização',
+                  ),
+                ),
+              ),
+            ] else if (!currentDeviceIsActingPlayer)
+              Text(
+                'Aguardando ${actingPlayer.name} escolher qual próxima vez será controlada.',
+                style: const TextStyle(color: Colors.white70),
+              )
+            else ...[
+              const Text(
+                'Escolha um jogador. Na próxima vez dele, você jogará uma carta aleatória por ele.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              ...session.gameState.players
+                  .where((player) => player.hand.isNotEmpty)
+                  .map((player) {
+                return Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    title: Text(
+                      player.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('${player.hand.length} cartas na mão'),
+                    trailing: const Icon(Icons.queue_music),
+                    onTap: isResolvingEffect
+                        ? null
+                        : () {
+                            onTargetSelected(player);
+                          },
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PianoExecutionPendingEffectCard extends StatelessWidget {
+  const _PianoExecutionPendingEffectCard({
+    required this.session,
+    required this.currentPlayerId,
+    required this.isResolvingEffect,
+    required this.onExecute,
+  });
+
+  final OnlineGameSession session;
+  final String currentPlayerId;
+  final bool isResolvingEffect;
+  final VoidCallback onExecute;
+
+  @override
+  Widget build(BuildContext context) {
+    final effect = session.pendingEffect!;
+    final controllerPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.actingPlayerId,
+    );
+    final targetPlayer = session.gameState.players.firstWhere(
+      (player) => player.id == effect.targetPlayerId,
+    );
+    final currentDeviceIsController = currentPlayerId == controllerPlayer.id;
+
+    return Card(
+      color: const Color(0xFF221229),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _PendingEffectTitle(
+              icon: Icons.queue_music,
+              title: 'O Piano Desafinado',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${controllerPlayer.name} controlará a vez de ${targetPlayer.name}.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            if (currentDeviceIsController)
+              FilledButton.icon(
+                onPressed: isResolvingEffect ? null : onExecute,
+                icon: const Icon(Icons.casino),
+                label: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Sortear e jogar carta'),
+                ),
+              )
+            else
+              Text(
+                'Aguardando ${controllerPlayer.name} sortear e jogar uma carta por ${targetPlayer.name}.',
+                style: const TextStyle(color: Colors.white60),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingEffectTitle extends StatelessWidget {
+  const _PendingEffectTitle({
+    required this.icon,
+    required this.title,
+  });
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFFE7C76F)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFE7C76F),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -8607,6 +9452,18 @@ class _OnlineTableCard extends StatelessWidget {
       );
       effects.add(
         'Juramento Secreto: ${firstPlayer.name} e ${secondPlayer.name} estão vinculados até o fim da rodada.',
+      );
+    }
+
+    if (gameState.hasPendingPiano) {
+      final controllerPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.pianoControllerPlayerId,
+      );
+      final targetPlayer = gameState.players.firstWhere(
+        (player) => player.id == gameState.pianoTargetPlayerId,
+      );
+      effects.add(
+        'O Piano Desafinado: na próxima vez de ${targetPlayer.name}, ${controllerPlayer.name} jogará uma carta aleatória por esse jogador.',
       );
     }
 

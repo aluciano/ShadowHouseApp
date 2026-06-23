@@ -212,6 +212,7 @@ Map<String, Object?> onlinePendingEffectToFirestore(
     'type': effect.type.name,
     'actingPlayerId': effect.actingPlayerId,
     'cardName': effect.cardName,
+    'resolverPlayerId': effect.resolverPlayerId,
     'allowSelfTarget': effect.allowSelfTarget,
     'targetPlayerId': effect.targetPlayerId,
     'revealedCardId': effect.revealedCardId,
@@ -227,6 +228,7 @@ Map<String, Object?> onlinePendingEffectToFirestore(
     'receivedCardCountByPlayerId': effect.receivedCardCountByPlayerId,
     'receivedCardNamesByPlayerId': effect.receivedCardNamesByPlayerId,
     'previewCardNames': effect.previewCardNames,
+    'offeredCards': effect.offeredCards.map(gameCardToFirestore).toList(),
     'resultMessage': effect.resultMessage,
     'acknowledgedPlayerIds': effect.acknowledgedPlayerIds,
   };
@@ -243,6 +245,7 @@ OnlinePendingEffect onlinePendingEffectFromFirestore(
     ),
     actingPlayerId: data['actingPlayerId'] as String,
     cardName: data['cardName'] as String? ?? 'Efeito',
+    resolverPlayerId: data['resolverPlayerId'] as String?,
     allowSelfTarget: data['allowSelfTarget'] as bool? ?? false,
     targetPlayerId: data['targetPlayerId'] as String?,
     revealedCardId: data['revealedCardId'] as String?,
@@ -272,6 +275,10 @@ OnlinePendingEffect onlinePendingEffectFromFirestore(
     previewCardNames: List<String>.from(
       data['previewCardNames'] as List<dynamic>? ?? [],
     ),
+    offeredCards: (data['offeredCards'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(gameCardFromFirestore)
+        .toList(),
     resultMessage: data['resultMessage'] as String?,
     acknowledgedPlayerIds: List<String>.from(
       data['acknowledgedPlayerIds'] as List<dynamic>? ?? [],
@@ -290,6 +297,8 @@ Map<String, Object?> gameStateToFirestore(GameState gameState) {
     'silenceOwnerPlayerId': gameState.silenceOwnerPlayerId,
     'secretOathPlayerId': gameState.secretOathPlayerId,
     'secretOathPartnerPlayerId': gameState.secretOathPartnerPlayerId,
+    'pianoControllerPlayerId': gameState.pianoControllerPlayerId,
+    'pianoTargetPlayerId': gameState.pianoTargetPlayerId,
     'roundResult': gameState.roundResult == null
         ? null
         : roundResultToFirestore(gameState.roundResult!),
@@ -315,6 +324,8 @@ GameState gameStateFromFirestore(Map<String, dynamic> data) {
     silenceOwnerPlayerId: data['silenceOwnerPlayerId'] as String?,
     secretOathPlayerId: data['secretOathPlayerId'] as String?,
     secretOathPartnerPlayerId: data['secretOathPartnerPlayerId'] as String?,
+    pianoControllerPlayerId: data['pianoControllerPlayerId'] as String?,
+    pianoTargetPlayerId: data['pianoTargetPlayerId'] as String?,
     roundResult: data['roundResult'] == null
         ? null
         : roundResultFromFirestore(

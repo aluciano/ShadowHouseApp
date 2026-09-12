@@ -59,16 +59,12 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
               const SizedBox(height: 8),
               const Text(
                 'Cada jogador com cartas na mão escolhe uma carta da própria mão. Depois, o app embaralha essas cartas e distribui uma para cada participante.',
-                style: TextStyle(
-                  color: Colors.white70,
-                ),
+                style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Se um jogador tiver Carta Selada Ã  frente, apenas essa carta entra no Frenesi e nenhuma outra da mÃ£o dele participa.',
-                style: TextStyle(
-                  color: Colors.white60,
-                ),
+                style: TextStyle(color: Colors.white60),
               ),
               const SizedBox(height: 24),
               if (receivedCardsCountByPlayerId != null)
@@ -137,15 +133,17 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
         needsHandChoice: currentPlayer.hand.isNotEmpty,
         onContinue: () {
           if (playerHasSealedCards(currentPlayer)) {
-            final isLastPlayer = currentSelectorIndex == eligiblePlayers.length - 1;
+            final isLastPlayer =
+                currentSelectorIndex == eligiblePlayers.length - 1;
 
             if (isLastPlayer) {
               setState(() {
                 previewCards = previewFrenzyCards(
                   cards: frenzyContributionCards(
                     gameState: widget.gameState,
-                    participantPlayerIds:
-                        eligiblePlayers.map((player) => player.id),
+                    participantPlayerIds: eligiblePlayers.map(
+                      (player) => player.id,
+                    ),
                     selectedCardByPlayerId: selectedCardByPlayerId,
                   ),
                 );
@@ -183,7 +181,9 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
             previewCards = previewFrenzyCards(
               cards: frenzyContributionCards(
                 gameState: widget.gameState,
-                participantPlayerIds: eligiblePlayers.map((player) => player.id),
+                participantPlayerIds: eligiblePlayers.map(
+                  (player) => player.id,
+                ),
                 selectedCardByPlayerId: selectedCardByPlayerId,
               ),
             );
@@ -203,9 +203,7 @@ class _FrenzyEffectScreenState extends State<FrenzyEffectScreen> {
   void _goToNextPlayer(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: widget.gameState,
-        ),
+        builder: (_) => PassDeviceScreen(gameState: widget.gameState),
       ),
       (route) => route.isFirst,
     );
@@ -237,11 +235,7 @@ class _FrenzyCompletedCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.shuffle,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.shuffle, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               'Frenesi!!! resolvido',
@@ -256,9 +250,7 @@ class _FrenzyCompletedCard extends StatelessWidget {
             const Text(
               'As cartas escolhidas foram embaralhadas e redistribuídas entre os participantes.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 24),
             ...gameState.players.map((player) {
@@ -318,10 +310,7 @@ class _FrenzyCompletedCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -350,11 +339,7 @@ class _FrenzyPreviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
-              Icons.visibility,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.visibility, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             const Text(
               'Prévia embaralhada',
@@ -369,9 +354,7 @@ class _FrenzyPreviewCard extends StatelessWidget {
             const Text(
               'Quem jogou Frenesi!!! pode revisar as cartas embaralhadas antes de embaralhar novamente e redistribuir entre os participantes.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 24),
             ...previewCards.map((card) {
@@ -409,9 +392,7 @@ class _FrenzyPreviewCard extends StatelessWidget {
 }
 
 class _NoCardsAvailableCard extends StatelessWidget {
-  const _NoCardsAvailableCard({
-    required this.onContinue,
-  });
+  const _NoCardsAvailableCard({required this.onContinue});
 
   final VoidCallback onContinue;
 
@@ -423,11 +404,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.info_outline,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.info_outline, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             const Text(
               'Nenhuma carta disponível',
@@ -442,9 +419,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
             const Text(
               'Nenhum jogador tem cartas na mão para participar do Frenesi!!! A carta fica à frente sem efeito.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -453,10 +428,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -492,27 +464,18 @@ class _PassToPlayerCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.phone_android,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.phone_android, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               'Escolha $currentIndex de $totalPlayers',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 12),
             const Text(
               'Passe o celular para',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 20, color: Colors.white70),
             ),
             const SizedBox(height: 8),
             Text(
@@ -528,18 +491,14 @@ class _PassToPlayerCard extends StatelessWidget {
             const Text(
               'Este jogador deve escolher uma carta da própria mão para entrar no embaralhamento.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             if (hasSealedCards) ...[
               const SizedBox(height: 8),
               const Text(
                 'Como há Carta Selada à frente deste jogador, nenhuma outra carta da mão dele entrará no Frenesi.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white60,
-                ),
+                style: TextStyle(color: Colors.white60),
               ),
             ],
             const SizedBox(height: 32),
@@ -549,10 +508,7 @@ class _PassToPlayerCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -588,9 +544,7 @@ class _CardSelectionCard extends StatelessWidget {
             Text(
               'Escolha $currentIndex de $totalPlayers',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 12),
             Text(
@@ -604,9 +558,7 @@ class _CardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Essa carta será embaralhada com as escolhas dos outros jogadores.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ...player.hand.map((card) {
@@ -615,9 +567,7 @@ class _CardSelectionCard extends StatelessWidget {
                 child: ListTile(
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                   trailing: const Icon(Icons.shuffle),

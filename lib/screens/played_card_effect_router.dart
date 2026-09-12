@@ -34,9 +34,7 @@ void continueAfterPlayedCard({
   if (gameState.roundFinished) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => RoundResultScreen(
-          gameState: gameState,
-        ),
+        builder: (_) => RoundResultScreen(gameState: gameState),
       ),
       (route) => route.isFirst,
     );
@@ -297,11 +295,7 @@ void continueAfterPlayedCard({
     );
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: gameState,
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => PassDeviceScreen(gameState: gameState)),
       (route) => route.isFirst,
     );
     return;
@@ -360,11 +354,7 @@ void continueAfterPlayedCard({
   }
 
   Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(
-      builder: (_) => PassDeviceScreen(
-        gameState: gameState,
-      ),
-    ),
+    MaterialPageRoute(builder: (_) => PassDeviceScreen(gameState: gameState)),
     (route) => route.isFirst,
   );
 }

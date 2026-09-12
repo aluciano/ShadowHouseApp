@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/game_mode.dart';
 import '../models/game_setup.dart';
@@ -17,9 +18,12 @@ import 'online_game_session_factory.dart';
 class FirestoreOnlineGameRepository implements OnlineGameRepository {
   FirestoreOnlineGameRepository({
     FirebaseFirestore? firestore,
-  }) : firestore = firestore ?? FirebaseFirestore.instance;
+    FirebaseAuth? auth,
+  }) : firestore = firestore ?? FirebaseFirestore.instance,
+       auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore firestore;
+  final FirebaseAuth auth;
   final Random _random = Random();
 
   CollectionReference<Map<String, dynamic>> get _rooms {
@@ -34,15 +38,27 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     return _roomRef(roomId).collection('sessions').doc('current');
   }
 
+  String get _currentUserId {
+    final user = auth.currentUser;
+
+    if (user == null) {
+      throw StateError('Entre novamente para acessar o modo online.');
+    }
+
+    return user.uid;
+  }
+
   @override
   Future<OnlineRoom> createRoom({
     required String hostName,
     required GameMode gameMode,
   }) async {
     final now = DateTime.now();
-    final roomRef = _rooms.doc();
+    final roomCode = await _createUniqueRoomCode();
+    final roomRef = _rooms.doc(roomCode);
+    final currentUserId = _currentUserId;
     final player = OnlinePlayer(
-      id: 'player_${now.microsecondsSinceEpoch}',
+      id: currentUserId,
       name: hostName,
       isHost: true,
       isReady: true,
@@ -52,9 +68,10 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     final room = _normalizeRoom(
       OnlineRoom(
         id: roomRef.id,
-        code: await _createUniqueRoomCode(),
+        code: roomCode,
         hostPlayerId: player.id,
         players: [player],
+        participantUids: [currentUserId],
         gameMode: gameMode,
         createdAt: now,
         status: OnlineRoomStatus.waiting,
@@ -75,32 +92,26 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
   }) async {
     final normalizedCode = roomCode.trim().toUpperCase();
     final normalizedPlayerName = playerName.trim();
-    final roomQuery = await _rooms
-        .where('code', isEqualTo: normalizedCode)
-        .limit(1)
-        .get();
+    final roomDoc = await _rooms.doc(normalizedCode).get();
 
-    if (roomQuery.docs.isEmpty) {
+    if (!roomDoc.exists || roomDoc.data() == null) {
       throw StateError('Sala não encontrada.');
     }
 
-    final roomDoc = roomQuery.docs.first;
-    final room = onlineRoomFromFirestore(
-      id: roomDoc.id,
-      data: roomDoc.data(),
-    );
+    final room = onlineRoomFromFirestore(id: roomDoc.id, data: roomDoc.data()!);
 
     if (room.status != OnlineRoomStatus.waiting) {
-      throw StateError(
-        'Não é possível entrar: a sala já está em jogo.',
-      );
+      throw StateError('Não é possível entrar: a sala já está em jogo.');
     }
 
     final now = DateTime.now();
+    final currentUserId = _currentUserId;
     final existingPlayerIndex = room.players.indexWhere((player) {
-      return player.name.trim().toLowerCase() ==
-              normalizedPlayerName.toLowerCase() &&
-          !player.id.startsWith('placeholder_player_');
+      return player.id == currentUserId ||
+          (player.name.trim().toLowerCase() ==
+                  normalizedPlayerName.toLowerCase() &&
+              !player.id.startsWith('placeholder_player_') &&
+              !player.isConnected);
     });
 
     late final OnlinePlayer joinedPlayer;
@@ -114,6 +125,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       }
 
       joinedPlayer = existingPlayer.copyWith(
+        id: currentUserId,
         name: normalizedPlayerName,
         isConnected: true,
         isReady: true,
@@ -123,7 +135,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       updatedPlayers[existingPlayerIndex] = joinedPlayer;
     } else {
       joinedPlayer = OnlinePlayer(
-        id: 'player_${now.microsecondsSinceEpoch}',
+        id: currentUserId,
         name: normalizedPlayerName,
         isHost: false,
         isReady: true,
@@ -136,6 +148,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     final updatedRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
+        participantUids: {...room.participantUids, currentUserId}.toList(),
         systemMessage: existingPlayerIndex >= 0
             ? '$normalizedPlayerName reconectou.'
             : '$normalizedPlayerName entrou na sala.',
@@ -164,7 +177,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       id: roomSnapshot.id,
       data: roomSnapshot.data()!,
     );
-    final playerIndex = room.players.indexWhere((player) => player.id == playerId);
+    final playerIndex = room.players.indexWhere(
+      (player) => player.id == playerId,
+    );
 
     if (playerIndex < 0) {
       throw StateError('Seu jogador não está mais nessa sala.');
@@ -256,14 +271,17 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
 
   @override
   Stream<OnlineGameSession> watchCurrentSession(OnlineRoom room) {
-    return _currentSessionRef(room.id).snapshots().where((snapshot) {
-      return snapshot.exists && snapshot.data() != null;
-    }).map((snapshot) {
-      return onlineGameSessionFromFirestore(
-        room: room,
-        data: snapshot.data()!,
-      );
-    });
+    return _currentSessionRef(room.id)
+        .snapshots()
+        .where((snapshot) {
+          return snapshot.exists && snapshot.data() != null;
+        })
+        .map((snapshot) {
+          return onlineGameSessionFromFirestore(
+            room: room,
+            data: snapshot.data()!,
+          );
+        });
   }
 
   @override
@@ -286,14 +304,17 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
 
   @override
   Stream<OnlineRoom> watchRoom(String roomId) {
-    return _roomRef(roomId).snapshots().where((snapshot) {
-      return snapshot.exists && snapshot.data() != null;
-    }).map((snapshot) {
-      return onlineRoomFromFirestore(
-        id: snapshot.id,
-        data: snapshot.data()!,
-      );
-    });
+    return _roomRef(roomId)
+        .snapshots()
+        .where((snapshot) {
+          return snapshot.exists && snapshot.data() != null;
+        })
+        .map((snapshot) {
+          return onlineRoomFromFirestore(
+            id: snapshot.id,
+            data: snapshot.data()!,
+          );
+        });
   }
 
   @override
@@ -313,8 +334,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
         id: roomSnapshot.id,
         data: roomSnapshot.data()!,
       );
-      final playerIndex =
-          room.players.indexWhere((player) => player.id == playerId);
+      final playerIndex = room.players.indexWhere(
+        (player) => player.id == playerId,
+      );
 
       if (playerIndex < 0) {
         return;
@@ -336,10 +358,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
           systemMessage: !connectionChanged
               ? room.systemMessage
               : isConnected
-                  ? '${existingPlayer.name} reconectou.'
-                  : '${existingPlayer.name} desconectou.',
-          systemMessageAt:
-              connectionChanged ? now : room.systemMessageAt,
+              ? '${existingPlayer.name} reconectou.'
+              : '${existingPlayer.name} desconectou.',
+          systemMessageAt: connectionChanged ? now : room.systemMessageAt,
         ),
       );
 
@@ -370,9 +391,7 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
 
         transaction.set(
           _currentSessionRef(roomId),
-          onlineGameSessionToFirestore(
-            session.copyWith(room: updatedRoom),
-          ),
+          onlineGameSessionToFirestore(session.copyWith(room: updatedRoom)),
         );
       }
     });
@@ -513,7 +532,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     }
 
     var hostPlayerId = room.hostPlayerId;
-    final hostStillExists = room.players.any((player) => player.id == hostPlayerId);
+    final hostStillExists = room.players.any(
+      (player) => player.id == hostPlayerId,
+    );
     final currentHost = hostStillExists
         ? room.players.firstWhere((player) => player.id == hostPlayerId)
         : null;
@@ -530,7 +551,8 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       return player.copyWith(isHost: player.id == hostPlayerId);
     }).toList();
 
-    final currentPlayerId = room.currentPlayerId != null &&
+    final currentPlayerId =
+        room.currentPlayerId != null &&
             players.any((player) => player.id == room.currentPlayerId)
         ? room.currentPlayerId
         : null;
@@ -538,6 +560,10 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     return room.copyWith(
       hostPlayerId: hostPlayerId,
       players: players,
+      participantUids: players
+          .where((player) => !player.id.startsWith('placeholder_player_'))
+          .map((player) => player.id)
+          .toList(),
       currentPlayerId: currentPlayerId,
     );
   }
@@ -554,9 +580,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       data: sessionSnapshot.data()!,
     );
 
-    await _currentSessionRef(room.id).set(
-      onlineGameSessionToFirestore(session.copyWith(room: room)),
-    );
+    await _currentSessionRef(
+      room.id,
+    ).set(onlineGameSessionToFirestore(session.copyWith(room: room)));
   }
 
   OnlineGameSession _sessionAfterRemovingPlayer({
@@ -624,7 +650,10 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
     final sanitizedRoom = updatedRoom.copyWith(
       currentPlayerId: updatedGameState.currentPlayer.id,
       players: updatedRoom.players
-          .where((roomPlayer) => updatedPlayers.any((player) => player.id == roomPlayer.id))
+          .where(
+            (roomPlayer) =>
+                updatedPlayers.any((player) => player.id == roomPlayer.id),
+          )
           .toList(),
     );
 
@@ -659,8 +688,8 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
 
     final isCollectiveSelectionEffect =
         effect.type == OnlineEffectType.share ||
-            effect.type == OnlineEffectType.rumors ||
-            effect.type == OnlineEffectType.frenzy;
+        effect.type == OnlineEffectType.rumors ||
+        effect.type == OnlineEffectType.frenzy;
 
     if (effect.resultMessage == null &&
         (effect.targetPlayerId == removedPlayerId ||
@@ -713,8 +742,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
       secondaryCardId: effect.secondaryCardId == removedPlayerId
           ? null
           : effect.secondaryCardId,
-      secondaryCardName:
-          effect.secondaryCardId == removedPlayerId ? null : effect.secondaryCardName,
+      secondaryCardName: effect.secondaryCardId == removedPlayerId
+          ? null
+          : effect.secondaryCardName,
       secondaryCardTemplateId: effect.secondaryCardId == removedPlayerId
           ? null
           : effect.secondaryCardTemplateId,
@@ -731,12 +761,9 @@ class FirestoreOnlineGameRepository implements OnlineGameRepository {
   Future<String> _createUniqueRoomCode() async {
     for (int attempt = 0; attempt < 10; attempt++) {
       final code = _createRoomCode();
-      final existing = await _rooms
-          .where('code', isEqualTo: code)
-          .limit(1)
-          .get();
+      final existing = await _rooms.doc(code).get();
 
-      if (existing.docs.isEmpty) {
+      if (!existing.exists) {
         return code;
       }
     }

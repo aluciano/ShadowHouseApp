@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
 class SetupSummaryRow extends StatelessWidget {
-  const SetupSummaryRow({
-    super.key,
-    required this.label,
-    required this.value,
-  });
+  const SetupSummaryRow({super.key, required this.label, required this.value});
 
   final String label;
   final String value;

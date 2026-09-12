@@ -17,14 +17,8 @@ class ShadowScrollableContent extends StatelessWidget {
         builder: (context, constraints) {
           return SingleChildScrollView(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight,
-              ),
-              child: centerContent
-                  ? Center(
-                child: child,
-              )
-                  : child,
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: centerContent ? Center(child: child) : child,
             ),
           );
         },

@@ -1,5 +1,1 @@
-enum PlayerType {
-  localHuman,
-  bot,
-  remoteHuman,
-}
+enum PlayerType { localHuman, bot, remoteHuman }

@@ -61,7 +61,8 @@ class SecretOathEffectScreen extends StatelessWidget {
 
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => PassDeviceScreen(gameState: gameState),
+                          builder: (_) =>
+                              PassDeviceScreen(gameState: gameState),
                         ),
                         (route) => route.isFirst,
                       );

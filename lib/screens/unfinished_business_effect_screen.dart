@@ -89,10 +89,11 @@ class UnfinishedBusinessEffectScreen extends StatelessWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: OutlinedButton(
                               onPressed: () {
-                                final drewCard = resolveUnfinishedBusinessEffect(
-                                  gameState: gameState,
-                                  targetPlayer: target,
-                                );
+                                final drewCard =
+                                    resolveUnfinishedBusinessEffect(
+                                      gameState: gameState,
+                                      targetPlayer: target,
+                                    );
 
                                 showDialog<void>(
                                   context: context,
@@ -118,8 +119,9 @@ class UnfinishedBusinessEffectScreen extends StatelessWidget {
                                 );
                               },
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 child: Text(target.name),
                               ),
                             ),
@@ -148,9 +150,7 @@ class UnfinishedBusinessEffectScreen extends StatelessWidget {
     }
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(gameState: gameState),
-      ),
+      MaterialPageRoute(builder: (_) => PassDeviceScreen(gameState: gameState)),
       (route) => route.isFirst,
     );
   }

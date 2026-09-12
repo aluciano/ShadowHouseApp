@@ -65,9 +65,7 @@ class _CircularCardPassEffectScreenState
               const SizedBox(height: 8),
               Text(
                 widget.introText,
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               if (receivedCardsCountByPlayerId != null)
@@ -125,8 +123,7 @@ class _CircularCardPassEffectScreenState
       onCardSelected: (card) {
         selectedCardByPlayerId[currentPlayer.id] = card;
 
-        final isLastPlayer =
-            currentSelectorIndex == eligiblePlayers.length - 1;
+        final isLastPlayer = currentSelectorIndex == eligiblePlayers.length - 1;
 
         if (isLastPlayer) {
           final summary = resolveCircularCardPassEffect(
@@ -154,11 +151,9 @@ class _CircularCardPassEffectScreenState
   void _goToNextPlayer(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: widget.gameState,
-        ),
+        builder: (_) => PassDeviceScreen(gameState: widget.gameState),
       ),
-          (route) => route.isFirst,
+      (route) => route.isFirst,
     );
   }
 }
@@ -205,9 +200,7 @@ class _EffectCompletedCard extends StatelessWidget {
             const Text(
               'As cartas foram passadas na ordem da mesa.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 24),
             ...gameState.players.map((player) {
@@ -265,10 +258,7 @@ class _EffectCompletedCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -280,9 +270,7 @@ class _EffectCompletedCard extends StatelessWidget {
 }
 
 class _NoCardsAvailableCard extends StatelessWidget {
-  const _NoCardsAvailableCard({
-    required this.onContinue,
-  });
+  const _NoCardsAvailableCard({required this.onContinue});
 
   final VoidCallback onContinue;
 
@@ -294,11 +282,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.info_outline,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.info_outline, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             const Text(
               'Nenhuma carta disponível',
@@ -313,9 +297,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
             const Text(
               'Nenhum jogador tem cartas na mão para compartilhar. A carta fica à frente sem efeito.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -324,10 +306,7 @@ class _NoCardsAvailableCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -359,27 +338,18 @@ class _PassToPlayerCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.phone_android,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.phone_android, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               'Escolha $currentIndex de $totalPlayers',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 12),
             const Text(
               'Passe o celular para',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 20, color: Colors.white70),
             ),
             const SizedBox(height: 8),
             Text(
@@ -395,9 +365,7 @@ class _PassToPlayerCard extends StatelessWidget {
             const Text(
               'Este jogador deve escolher uma carta da própria mão para compartilhar.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -406,10 +374,7 @@ class _PassToPlayerCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Escolher carta',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Escolher carta', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -445,9 +410,7 @@ class _CardSelectionCard extends StatelessWidget {
             Text(
               'Escolha $currentIndex de $totalPlayers',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 12),
             Text(
@@ -461,9 +424,7 @@ class _CardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Essa carta será entregue somente depois que todos escolherem.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ...player.hand.map((card) {
@@ -472,9 +433,7 @@ class _CardSelectionCard extends StatelessWidget {
                 child: ListTile(
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                   trailing: const Icon(Icons.chevron_right),

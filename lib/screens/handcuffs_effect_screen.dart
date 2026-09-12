@@ -24,7 +24,7 @@ class HandcuffsEffectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actingPlayer = gameState.players.firstWhere(
-          (player) => player.id == actingPlayerId,
+      (player) => player.id == actingPlayerId,
     );
 
     final availableTargets = gameState.players.where((player) {
@@ -63,9 +63,7 @@ class HandcuffsEffectScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 '${actingPlayer.name}: $instructionText',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               Card(
@@ -98,11 +96,10 @@ class HandcuffsEffectScreen extends StatelessWidget {
 
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (_) => PassDeviceScreen(
-                                    gameState: gameState,
-                                  ),
+                                  builder: (_) =>
+                                      PassDeviceScreen(gameState: gameState),
                                 ),
-                                    (route) => route.isFirst,
+                                (route) => route.isFirst,
                               );
                             },
                             icon: Icon(

@@ -44,6 +44,7 @@ Map<String, Object?> onlineRoomToFirestore(OnlineRoom room) {
     'code': room.code,
     'hostPlayerId': room.hostPlayerId,
     'players': room.players.map(onlinePlayerToFirestore).toList(),
+    'participantUids': room.participantUids,
     'gameMode': room.gameMode.name,
     'createdAt': Timestamp.fromDate(room.createdAt),
     'status': room.status.name,
@@ -63,12 +64,20 @@ OnlineRoom onlineRoomFromFirestore({
       .whereType<Map<String, dynamic>>()
       .map(onlinePlayerFromFirestore)
       .toList();
+  final participantUids = List<String>.from(
+    data['participantUids'] as List<dynamic>? ??
+        players
+            .where((player) => !player.id.startsWith('placeholder_player_'))
+            .map((player) => player.id)
+            .toList(),
+  );
 
   return OnlineRoom(
     id: id,
     code: data['code'] as String,
     hostPlayerId: data['hostPlayerId'] as String,
     players: players,
+    participantUids: participantUids,
     gameMode: _enumByName(
       GameMode.values,
       data['gameMode'] as String?,
@@ -97,6 +106,7 @@ Map<String, Object?> matchHistoryEntryToFirestore(MatchHistoryEntry entry) {
     'playerNames': entry.playerNames,
     'winnerNames': entry.winnerNames,
     'roundsPlayed': entry.roundsPlayed,
+    'participantUids': entry.participantUids,
     'roomCode': entry.roomCode,
   };
 }
@@ -122,13 +132,14 @@ MatchHistoryEntry matchHistoryEntryFromFirestore({
     playerNames: List<String>.from(data['playerNames'] as List<dynamic>? ?? []),
     winnerNames: List<String>.from(data['winnerNames'] as List<dynamic>? ?? []),
     roundsPlayed: data['roundsPlayed'] as int? ?? 0,
+    participantUids: List<String>.from(
+      data['participantUids'] as List<dynamic>? ?? [],
+    ),
     roomCode: data['roomCode'] as String?,
   );
 }
 
-Map<String, Object?> onlineGameSessionToFirestore(
-  OnlineGameSession session,
-) {
+Map<String, Object?> onlineGameSessionToFirestore(OnlineGameSession session) {
   return {
     'room': onlineRoomToFirestore(session.room),
     'gameState': gameStateToFirestore(session.gameState),
@@ -151,10 +162,7 @@ OnlineGameSession onlineGameSessionFromFirestore({
 }) {
   final embeddedRoomData = data['room'];
   final effectiveRoom = embeddedRoomData is Map<String, dynamic>
-      ? onlineRoomFromFirestore(
-          id: room.id,
-          data: embeddedRoomData,
-        )
+      ? onlineRoomFromFirestore(id: room.id, data: embeddedRoomData)
       : room;
 
   return OnlineGameSession(
@@ -170,11 +178,10 @@ OnlineGameSession onlineGameSessionFromFirestore({
     nextRoundReadyPlayerIds: List<String>.from(
       data['nextRoundReadyPlayerIds'] as List<dynamic>? ?? [],
     ),
-    activeProtections:
-        (data['activeProtections'] as List<dynamic>? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .map(onlineActiveProtectionFromFirestore)
-            .toList(),
+    activeProtections: (data['activeProtections'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(onlineActiveProtectionFromFirestore)
+        .toList(),
     pendingEffect: data['pendingEffect'] == null
         ? null
         : onlinePendingEffectFromFirestore(
@@ -480,11 +487,7 @@ DateTime _dateTimeFromFirestore(Object? value) {
   return DateTime.now();
 }
 
-T _enumByName<T extends Enum>(
-  List<T> values,
-  String? name,
-  T fallback,
-) {
+T _enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
   for (final value in values) {
     if (value.name == name) {
       return value;

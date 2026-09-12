@@ -51,12 +51,12 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
     super.initState();
 
     final actingPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     if (widget.fixedTargetPlayerId != null) {
       selectedTarget = widget.gameState.players.firstWhere(
-            (player) => player.id == widget.fixedTargetPlayerId,
+        (player) => player.id == widget.fixedTargetPlayerId,
       );
     }
 
@@ -72,7 +72,7 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final actingPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final availableTargets = widget.gameState.players.where((player) {
@@ -103,9 +103,7 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${actingPlayer.name}: ${widget.introText}',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               _buildCurrentStep(
@@ -130,7 +128,7 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
         return _MessageCard(
           title: 'Efeito sem troca',
           message:
-          '${actingPlayer.name} não tem mais cartas na mão para trocar. A carta fica à frente sem efeito.',
+              '${actingPlayer.name} não tem mais cartas na mão para trocar. A carta fica à frente sem efeito.',
           buttonText: 'Continuar',
           onPressed: () {
             widget.gameState.moveToNextPlayer();
@@ -143,7 +141,7 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
           return _MessageCard(
             title: 'Nenhum alvo disponível',
             message:
-            'Não há outros jogadores com cartas na mão para realizar a troca. A carta fica à frente sem efeito.',
+                'Não há outros jogadores com cartas na mão para realizar a troca. A carta fica à frente sem efeito.',
             buttonText: 'Continuar',
             onPressed: () {
               widget.gameState.moveToNextPlayer();
@@ -174,11 +172,11 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
           },
           onBack: widget.fixedTargetPlayerId == null
               ? () {
-            setState(() {
-              selectedTarget = null;
-              step = CardExchangeStep.selectTarget;
-            });
-          }
+                  setState(() {
+                    selectedTarget = null;
+                    step = CardExchangeStep.selectTarget;
+                  });
+                }
               : null,
         );
 
@@ -224,11 +222,9 @@ class _CardExchangeEffectScreenState extends State<CardExchangeEffectScreen> {
   void _goToNextPlayer(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: widget.gameState,
-        ),
+        builder: (_) => PassDeviceScreen(gameState: widget.gameState),
       ),
-          (route) => route.isFirst,
+      (route) => route.isFirst,
     );
   }
 }
@@ -316,9 +312,7 @@ class _ActingPlayerCardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Essa carta será trocada com uma carta de ${targetPlayer.name}.',
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ...actingPlayer.hand.map((card) {
@@ -327,9 +321,7 @@ class _ActingPlayerCardSelectionCard extends StatelessWidget {
                 child: ListTile(
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                   trailing: const Icon(Icons.chevron_right),
@@ -375,19 +367,12 @@ class _PassToTargetCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.phone_android,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.phone_android, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             const Text(
               'Passe o celular para',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 20, color: Colors.white70),
             ),
             const SizedBox(height: 8),
             Text(
@@ -403,9 +388,7 @@ class _PassToTargetCard extends StatelessWidget {
             const Text(
               'Este jogador deve escolher uma carta da própria mão para trocar.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -414,10 +397,7 @@ class _PassToTargetCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Escolher carta',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Escolher carta', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -428,10 +408,7 @@ class _PassToTargetCard extends StatelessWidget {
                 onPressed: onBack,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Voltar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Voltar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -473,9 +450,7 @@ class _TargetCardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Essa carta será entregue ao outro jogador.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ...targetPlayer.hand.map((card) {
@@ -484,9 +459,7 @@ class _TargetCardSelectionCard extends StatelessWidget {
                 child: ListTile(
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                   trailing: const Icon(Icons.chevron_right),
@@ -532,11 +505,7 @@ class _MessageCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.info_outline,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.info_outline, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               title,
@@ -551,9 +520,7 @@ class _MessageCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -562,10 +529,7 @@ class _MessageCard extends StatelessWidget {
                 onPressed: onPressed,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    buttonText,
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                  child: Text(buttonText, style: const TextStyle(fontSize: 18)),
                 ),
               ),
             ),

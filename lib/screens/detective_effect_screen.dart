@@ -27,7 +27,7 @@ class _DetectiveEffectScreenState extends State<DetectiveEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final detectivePlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final availableTargets = widget.gameState.players.where((player) {
@@ -58,9 +58,7 @@ class _DetectiveEffectScreenState extends State<DetectiveEffectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${detectivePlayer.name} deve escolher outro jogador e perguntar: “Você é o culpado?”',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               if (resultMessage == null)
@@ -76,11 +74,10 @@ class _DetectiveEffectScreenState extends State<DetectiveEffectScreen> {
                     if (widget.gameState.roundFinished) {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => RoundResultScreen(
-                            gameState: widget.gameState,
-                          ),
+                          builder: (_) =>
+                              RoundResultScreen(gameState: widget.gameState),
                         ),
-                            (route) => route.isFirst,
+                        (route) => route.isFirst,
                       );
 
                       return;
@@ -97,11 +94,10 @@ class _DetectiveEffectScreenState extends State<DetectiveEffectScreen> {
                   onContinue: () {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
                       ),
-                          (route) => route.isFirst,
+                      (route) => route.isFirst,
                     );
                   },
                 ),
@@ -162,10 +158,7 @@ class _DetectiveTargetSelectionCard extends StatelessWidget {
 }
 
 class _DetectiveResultCard extends StatelessWidget {
-  const _DetectiveResultCard({
-    required this.message,
-    required this.onContinue,
-  });
+  const _DetectiveResultCard({required this.message, required this.onContinue});
 
   final String message;
   final VoidCallback onContinue;
@@ -187,10 +180,7 @@ class _DetectiveResultCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 20,
-                color: Colors.white70,
-              ),
+              style: const TextStyle(fontSize: 20, color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -199,10 +189,7 @@ class _DetectiveResultCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Continuar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Continuar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),

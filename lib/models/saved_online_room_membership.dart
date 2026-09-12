@@ -10,11 +10,7 @@ class SavedOnlineRoomMembership {
   final String playerId;
 
   Map<String, String> toJson() {
-    return {
-      'roomId': roomId,
-      'roomCode': roomCode,
-      'playerId': playerId,
-    };
+    return {'roomId': roomId, 'roomCode': roomCode, 'playerId': playerId};
   }
 
   static SavedOnlineRoomMembership? fromJson(Map<String, dynamic>? json) {

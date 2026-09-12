@@ -133,7 +133,9 @@ class _LullabyEffectScreenState extends State<LullabyEffectScreen> {
                             width: double.infinity,
                             child: FilledButton(
                               onPressed: () {
-                                finishLullabyEffect(gameState: widget.gameState);
+                                finishLullabyEffect(
+                                  gameState: widget.gameState,
+                                );
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
                                     builder: (_) => PassDeviceScreen(

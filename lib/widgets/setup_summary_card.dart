@@ -25,10 +25,7 @@ class SetupSummaryCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            SetupSummaryRow(
-              label: 'Jogadores',
-              value: '$playerCount',
-            ),
+            SetupSummaryRow(label: 'Jogadores', value: '$playerCount'),
             const Divider(),
             SetupSummaryRow(
               label: 'Modo',

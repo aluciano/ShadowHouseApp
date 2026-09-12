@@ -35,7 +35,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
-    resumeSavedRoomIfPossible();
+    loadSavedRoomForReconnectPrompt();
   }
 
   @override
@@ -50,11 +50,108 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   late final WidgetsBindingObserver _lifecycleObserver =
       _OnlineEntryLifecycleObserver(
         onResumed: () {
-          if (!isResumingRoom && savedMembership != null) {
-            resumeSavedRoomIfPossible(showErrorMessage: false);
+          if (!isResumingRoom && savedMembership == null) {
+            loadSavedRoomForReconnectPrompt();
           }
         },
       );
+
+  Future<void> loadSavedRoomForReconnectPrompt() async {
+    if (isResumingRoom) {
+      return;
+    }
+
+    setState(() {
+      isResumingRoom = true;
+    });
+
+    final membership = await membershipStore.load();
+
+    if (!mounted) {
+      return;
+    }
+
+    savedMembership = membership;
+
+    setState(() {
+      isResumingRoom = false;
+    });
+
+    if (membership != null) {
+      askHowToHandleSavedRoom(membership);
+    }
+  }
+
+  Future<void> askHowToHandleSavedRoom(
+    SavedOnlineRoomMembership membership,
+  ) async {
+    final action = await showDialog<_SavedRoomAction>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Sala ${membership.roomCode}'),
+          content: const Text(
+            'Encontramos uma partida online em andamento neste aparelho. Deseja voltar para ela ou sair definitivamente?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(_SavedRoomAction.leave);
+              },
+              child: const Text('Sair definitivamente'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(_SavedRoomAction.resume);
+              },
+              child: const Text('Voltar para a partida'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    if (action == _SavedRoomAction.resume) {
+      await resumeSavedRoomIfPossible(showErrorMessage: true);
+      return;
+    }
+
+    await leaveSavedRoom(membership);
+  }
+
+  Future<void> leaveSavedRoom(SavedOnlineRoomMembership membership) async {
+    if (isResumingRoom) {
+      return;
+    }
+
+    setState(() {
+      isResumingRoom = true;
+    });
+
+    try {
+      await RepositoryRegistry.onlineGame.leaveRoom(
+        roomId: membership.roomId,
+        playerId: membership.playerId,
+      );
+    } catch (_) {
+      // A sala pode já ter acabado ou sido removida; limpar o vínculo local basta.
+    }
+
+    await membershipStore.clear();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      savedMembership = null;
+      isResumingRoom = false;
+    });
+  }
 
   Future<void> resumeSavedRoomIfPossible({
     bool showErrorMessage = false,
@@ -198,10 +295,8 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => OnlineLobbyScreen(
-          room: room,
-          currentPlayerId: room.hostPlayerId,
-        ),
+        builder: (_) =>
+            OnlineLobbyScreen(room: room, currentPlayerId: room.hostPlayerId),
       ),
     );
   }
@@ -275,18 +370,16 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => OnlineLobbyScreen(
-          room: room,
-          currentPlayerId: currentPlayer.id,
-        ),
+        builder: (_) =>
+            OnlineLobbyScreen(room: room, currentPlayerId: currentPlayer.id),
       ),
     );
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -344,6 +437,17 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            leaveSavedRoom(savedMembership!);
+                          },
+                          icon: const Icon(Icons.logout),
+                          label: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text('Sair definitivamente'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         FilledButton.icon(
                           onPressed: () {
                             resumeSavedRoomIfPossible(showErrorMessage: true);
@@ -362,18 +466,12 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
               ],
               const Text(
                 'Partida Online',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Crie uma sala ou entre com um código compartilhado.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.white70),
               ),
               const SizedBox(height: 24),
               SegmentedButton<bool>(
@@ -410,10 +508,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
               if (isCreatingTab) ...[
                 const Text(
                   'Modo da sala',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 ...GameMode.values.map((mode) {
@@ -442,10 +537,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
                       : const Icon(Icons.add),
                   label: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 14),
-                    child: Text(
-                      'Criar Sala',
-                      style: TextStyle(fontSize: 18),
-                    ),
+                    child: Text('Criar Sala', style: TextStyle(fontSize: 18)),
                   ),
                 ),
               ] else ...[
@@ -484,9 +576,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
 }
 
 class _OnlineEntryLifecycleObserver extends WidgetsBindingObserver {
-  _OnlineEntryLifecycleObserver({
-    required this.onResumed,
-  });
+  _OnlineEntryLifecycleObserver({required this.onResumed});
 
   final VoidCallback onResumed;
 
@@ -496,4 +586,9 @@ class _OnlineEntryLifecycleObserver extends WidgetsBindingObserver {
       onResumed();
     }
   }
+}
+
+enum _SavedRoomAction {
+  resume,
+  leave,
 }

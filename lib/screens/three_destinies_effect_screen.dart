@@ -22,16 +22,14 @@ class ThreeDestiniesEffectScreen extends StatefulWidget {
       _ThreeDestiniesEffectScreenState();
 }
 
-class _ThreeDestiniesEffectScreenState extends State<ThreeDestiniesEffectScreen> {
+class _ThreeDestiniesEffectScreenState
+    extends State<ThreeDestiniesEffectScreen> {
   late final List<GameCard> offeredCards;
 
   @override
   void initState() {
     super.initState();
-    offeredCards = drawCardsFromDeck(
-      gameState: widget.gameState,
-      count: 3,
-    );
+    offeredCards = drawCardsFromDeck(gameState: widget.gameState, count: 3);
   }
 
   @override
@@ -72,9 +70,8 @@ class _ThreeDestiniesEffectScreenState extends State<ThreeDestiniesEffectScreen>
                     widget.gameState.moveToNextPlayer();
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
                       ),
                       (route) => route.isFirst,
                     );
@@ -104,8 +101,9 @@ class _ThreeDestiniesEffectScreenState extends State<ThreeDestiniesEffectScreen>
                               onPressed: () {
                                 final currentPlayer = widget.gameState.players
                                     .firstWhere(
-                                  (player) => player.id == widget.actingPlayerId,
-                                );
+                                      (player) =>
+                                          player.id == widget.actingPlayerId,
+                                    );
                                 final discardedCards = offeredCards
                                     .where((item) => item.id != card.id)
                                     .toList();

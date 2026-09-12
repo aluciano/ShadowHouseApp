@@ -6,10 +6,7 @@ import 'hand_screen.dart';
 import 'table_screen.dart';
 
 class PassDeviceScreen extends StatelessWidget {
-  const PassDeviceScreen({
-    super.key,
-    required this.gameState,
-  });
+  const PassDeviceScreen({super.key, required this.gameState});
 
   final GameState gameState;
 
@@ -37,10 +34,7 @@ class PassDeviceScreen extends StatelessWidget {
                     const Text(
                       'Passe o celular para',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(fontSize: 20, color: Colors.white70),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -87,9 +81,7 @@ class PassDeviceScreen extends StatelessWidget {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => HandScreen(
-                                gameState: gameState,
-                              ),
+                              builder: (_) => HandScreen(gameState: gameState),
                             ),
                           );
                         },
@@ -109,9 +101,7 @@ class PassDeviceScreen extends StatelessWidget {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => TableScreen(
-                                gameState: gameState,
-                              ),
+                              builder: (_) => TableScreen(gameState: gameState),
                             ),
                           );
                         },

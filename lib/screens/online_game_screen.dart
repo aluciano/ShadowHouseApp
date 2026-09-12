@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../engine/game_engine.dart';
 import 'dart:math';
@@ -65,15 +65,12 @@ Set<String> _playedTemplateIds(GameState gameState) {
 }
 
 List<GameCard> _ghostCopySourceCards(GameState gameState) {
-  return gameState.players
-      .expand((player) => player.playedCards)
-      .where((card) {
-        return !card.wasDiscarded &&
-            !card.isFaceDown &&
-            card.templateId != 'primeiro_na_cena' &&
-            card.templateId != 'culpado';
-      })
-      .toList();
+  return gameState.players.expand((player) => player.playedCards).where((card) {
+    return !card.wasDiscarded &&
+        !card.isFaceDown &&
+        card.templateId != 'primeiro_na_cena' &&
+        card.templateId != 'culpado';
+  }).toList();
 }
 
 class OnlineGameScreen extends StatefulWidget {
@@ -211,9 +208,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     bool clearExpiredProtections = true,
   }) async {
     final updatedSession = clearExpiredProtections
-        ? session.copyWith(
-            activeProtections: _clearExpiredProtections(session),
-          )
+        ? session.copyWith(activeProtections: _clearExpiredProtections(session))
         : session;
 
     await RepositoryRegistry.onlineGame.saveCurrentSession(updatedSession);
@@ -238,10 +233,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   }) {
     final updatedSession = session.copyWith(gameState: gameState);
     final protections = _clearExpiredProtections(updatedSession);
-    final newProtection = _protectionForCard(
-      player: player,
-      card: card,
-    );
+    final newProtection = _protectionForCard(player: player, card: card);
 
     if (newProtection == null) {
       return protections;
@@ -317,14 +309,17 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   }
 
   List<String> _rumorsParticipantPlayerIds(GameState gameState) {
-    return gameState.players.where((player) {
-      final sourcePlayer = _playerToRightInGameState(
-        gameState: gameState,
-        currentPlayer: player,
-      );
- 
-      return sourcePlayer.hand.isNotEmpty;
-    }).map((player) => player.id).toList();
+    return gameState.players
+        .where((player) {
+          final sourcePlayer = _playerToRightInGameState(
+            gameState: gameState,
+            currentPlayer: player,
+          );
+
+          return sourcePlayer.hand.isNotEmpty;
+        })
+        .map((player) => player.id)
+        .toList();
   }
 
   OnlinePendingEffect? _preparePendingEffect({
@@ -363,9 +358,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
           offeredCards: drawCardsFromDeck(gameState: gameState, count: 3),
         );
       case OnlineEffectType.ghostCopy:
-        return effect.copyWith(
-          offeredCards: _ghostCopySourceCards(gameState),
-        );
+        return effect.copyWith(offeredCards: _ghostCopySourceCards(gameState));
       default:
         return effect;
     }
@@ -409,10 +402,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       return;
     }
 
-    if (isDirectQuestionCardBlocked(
-      gameState: gameState,
-      card: card,
-    )) {
+    if (isDirectQuestionCardBlocked(gameState: gameState, card: card)) {
       showMessage(
         'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
       );
@@ -456,16 +446,12 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       final isDetectiveCard = card.templateId == 'detetive';
       final isTotoCard = card.templateId == 'toto';
       final isHandcuffsCard =
-          card.templateId == 'xerife' ||
-          card.templateId == 'chave_enferrujada';
+          card.templateId == 'xerife' || card.templateId == 'chave_enferrujada';
       final isAccompliceCard = card.templateId == 'cumplice';
       final isPoisonedCupCard = card.templateId == 'taca_envenenada';
       final isProtectionCancelCard = card.templateId == 'palavra_final';
       final createsPendingEffect =
-          _pendingEffectForCard(
-            card: card,
-            actingPlayerId: player.id,
-          ) != null;
+          _pendingEffectForCard(card: card, actingPlayerId: player.id) != null;
       final hasPendingResolution =
           isDetectiveCard ||
           isTotoCard ||
@@ -475,10 +461,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
           isProtectionCancelCard ||
           createsPendingEffect;
 
-      playCard(
-        gameState: gameState,
-        card: card,
-      );
+      playCard(gameState: gameState, card: card);
 
       if (!gameState.roundFinished &&
           !hasPendingResolution &&
@@ -488,10 +471,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
 
       final pendingEffect = _preparePendingEffect(
         gameState: gameState,
-        effect: _pendingEffectForCard(
-        card: card,
-        actingPlayerId: player.id,
-        ),
+        effect: _pendingEffectForCard(card: card, actingPlayerId: player.id),
       );
 
       await _saveCurrentSession(
@@ -875,10 +855,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
 
     try {
-      final totoPlayer = _playerById(
-        session.gameState,
-        effect.actingPlayerId,
-      );
+      final totoPlayer = _playerById(session.gameState, effect.actingPlayerId);
       final targetPlayer = _playerById(
         session.gameState,
         effect.targetPlayerId!,
@@ -1039,10 +1016,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       return;
     }
 
-    final targetPlayer = _playerById(
-      session.gameState,
-      effect.targetPlayerId!,
-    );
+    final targetPlayer = _playerById(session.gameState, effect.targetPlayerId!);
     final isGuiltyCard = cardToDiscard.templateId == 'culpado';
     final isLastCardInHand = targetPlayer.hand.length == 1;
 
@@ -1412,10 +1386,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         session.gameState,
         effect.actingPlayerId,
       );
-      final targetPlayer = _playerById(
-        session.gameState,
-        protection.playerId,
-      );
+      final targetPlayer = _playerById(session.gameState, protection.playerId);
       final activeProtections = session.activeProtections.where((item) {
         return item.playerId != protection.playerId ||
             item.cardTemplateId != protection.cardTemplateId;
@@ -2320,7 +2291,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         ),
       );
     } catch (error) {
-      showMessage('Não foi possível resolver o primeiro alvo do Espião: $error');
+      showMessage(
+        'Não foi possível resolver o primeiro alvo do Espião: $error',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -2427,7 +2400,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         ),
       );
     } catch (error) {
-      showMessage('Não foi possível escolher o alvo da Máscara Quebrada: $error');
+      showMessage(
+        'Não foi possível escolher o alvo da Máscara Quebrada: $error',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -2452,8 +2427,14 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
 
     try {
-      final targetPlayer = _playerById(session.gameState, effect.targetPlayerId!);
-      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+      final targetPlayer = _playerById(
+        session.gameState,
+        effect.targetPlayerId!,
+      );
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
 
       await _saveCurrentSession(
         session.copyWith(
@@ -2468,7 +2449,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         ),
       );
     } catch (error) {
-      showMessage('Não foi possível revelar a carta da Máscara Quebrada: $error');
+      showMessage(
+        'Não foi possível revelar a carta da Máscara Quebrada: $error',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -2682,10 +2665,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
             revealedCardTemplateId: selectedCard.templateId,
             resultMessage: session.gameState.roundFinished
                 ? session.gameState.roundResult?.reason ??
-                    '${target.name} teve uma carta selada.'
+                      '${target.name} teve uma carta selada.'
                 : playerHasSealedCards(target)
-                    ? '${target.name} teve uma carta da mão colocada virada para baixo à frente dele.'
-                    : 'A carta selada de ${target.name} virou a última carta disponível e voltou para a mão dele.',
+                ? '${target.name} teve uma carta da mão colocada virada para baixo à frente dele.'
+                : 'A carta selada de ${target.name} virou a última carta disponível e voltou para a mão dele.',
             acknowledgedPlayerIds: const [],
           ),
         ),
@@ -2747,7 +2730,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
 
     try {
-      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
       resolveSecretOathEffect(
         gameState: session.gameState,
         actingPlayer: actingPlayer,
@@ -2788,7 +2774,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
 
     try {
-      final actingPlayer = _playerById(session.gameState, effect.actingPlayerId);
+      final actingPlayer = _playerById(
+        session.gameState,
+        effect.actingPlayerId,
+      );
       resolveSilenceEffect(
         gameState: session.gameState,
         actingPlayer: actingPlayer,
@@ -2830,10 +2819,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     });
 
     try {
-      resolveBetrayalEffect(
-        gameState: session.gameState,
-        targetPlayer: target,
-      );
+      resolveBetrayalEffect(gameState: session.gameState, targetPlayer: target);
 
       await _saveCurrentSession(
         session.copyWith(
@@ -3027,14 +3013,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         return card.id != selectedCard.id;
       });
 
-      placeCardsAsNoEffect(
-        player: actingPlayer,
-        cards: noEffectCards,
-      );
-      playExternalCard(
-        gameState: session.gameState,
-        card: selectedCard,
-      );
+      placeCardsAsNoEffect(player: actingPlayer, cards: noEffectCards);
+      playExternalCard(gameState: session.gameState, card: selectedCard);
 
       await _saveAfterExternalOnlineCard(
         session: session,
@@ -3054,9 +3034,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     }
   }
 
-  Future<void> skipThreeDestiniesWithoutCards(
-    OnlineGameSession session,
-  ) async {
+  Future<void> skipThreeDestiniesWithoutCards(OnlineGameSession session) async {
     final effect = session.pendingEffect;
 
     if (effect == null || isResolvingEffect) {
@@ -3160,9 +3138,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     }
   }
 
-  Future<void> skipGhostCopyWithoutSource(
-    OnlineGameSession session,
-  ) async {
+  Future<void> skipGhostCopyWithoutSource(OnlineGameSession session) async {
     final effect = session.pendingEffect;
 
     if (effect == null || isResolvingEffect) {
@@ -3295,8 +3271,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       widget.currentPlayerId,
     }.toList();
     final expectedViewerIds = _expectedViewerIds(session);
-    final everyoneAcknowledged =
-        expectedViewerIds.every(acknowledgedPlayerIds.contains);
+    final everyoneAcknowledged = expectedViewerIds.every(
+      acknowledgedPlayerIds.contains,
+    );
 
     setState(() {
       isResolvingEffect = true;
@@ -3361,7 +3338,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         .map((player) => player.score)
         .reduce((a, b) => a > b ? a : b);
     final isMatchFinished = highestScore >= 5;
-    final currentDeviceIsHost = widget.currentPlayerId == session.room.hostPlayerId;
+    final currentDeviceIsHost =
+        widget.currentPlayerId == session.room.hostPlayerId;
 
     if (!isMatchFinished || !currentDeviceIsHost || finishedMatchWasRecorded) {
       return;
@@ -3385,6 +3363,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         playerNames: gameState.players.map((player) => player.name).toList(),
         winnerNames: winnerNames,
         roundsPlayed: session.roundsPlayed,
+        participantUids: session.room.participantUids,
         roomCode: session.room.code,
       ),
     );
@@ -3399,9 +3378,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   }
 
   bool _cardNeedsOnlineResolution(GameCard card) {
-    return {
-      'testemunha',
-    }.contains(card.templateId);
+    return {'testemunha'}.contains(card.templateId);
   }
 
   Player _playerById(GameState gameState, String playerId) {
@@ -3440,9 +3417,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         effect.type != OnlineEffectType.familyBaby &&
         effect.type != OnlineEffectType.portrait &&
         effect.type != OnlineEffectType.spy) {
-      return _expectedViewerIds(
-        session,
-      ).where((playerId) => !effect.acknowledgedPlayerIds.contains(playerId)).toList();
+      return _expectedViewerIds(session)
+          .where((playerId) => !effect.acknowledgedPlayerIds.contains(playerId))
+          .toList();
     }
 
     switch (effect.type) {
@@ -3538,9 +3515,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _pendingEffectFocusToken(OnlinePendingEffect? effect) {
@@ -3629,7 +3606,8 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       ].join('|');
     }
 
-    final everyoneCompleted = effect.participantPlayerIds.isNotEmpty &&
+    final everyoneCompleted =
+        effect.participantPlayerIds.isNotEmpty &&
         effect.participantPlayerIds.every(effect.completedPlayerIds.contains);
     final needsShareReconcile =
         effect.type == OnlineEffectType.share &&
@@ -3726,7 +3704,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
 
         if (effect.type == OnlineEffectType.share &&
             effect.resultMessage == null &&
-            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+            effect.participantPlayerIds.every(
+              effect.completedPlayerIds.contains,
+            )) {
           await _finalizeShareEffect(
             session: session,
             effect: effect,
@@ -3739,7 +3719,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
 
         if (effect.type == OnlineEffectType.rumors &&
             effect.resultMessage == null &&
-            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+            effect.participantPlayerIds.every(
+              effect.completedPlayerIds.contains,
+            )) {
           await _finalizeRumorsEffect(
             session: session,
             effect: effect,
@@ -3753,7 +3735,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         if (effect.type == OnlineEffectType.frenzy &&
             effect.resultMessage == null &&
             effect.previewCardNames.isEmpty &&
-            effect.participantPlayerIds.every(effect.completedPlayerIds.contains)) {
+            effect.participantPlayerIds.every(
+              effect.completedPlayerIds.contains,
+            )) {
           await _prepareFrenzyPreview(
             session: session,
             effect: effect,
@@ -3797,111 +3781,487 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
         body: ShadowBackground(
           child: SafeArea(
             child: StreamBuilder<OnlineGameSession>(
-            stream: RepositoryRegistry.onlineGame.watchCurrentSession(
-              widget.session.room,
-            ),
-            initialData: widget.session,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Não foi possível atualizar a partida: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                );
-              }
-
-              final session = snapshot.data ?? widget.session;
-              final roomPlayer = _roomPlayerById(
-                session.room,
-                widget.currentPlayerId,
-              );
-
-              if (roomPlayer == null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  membershipStore.clear();
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Você não faz mais parte desta partida.',
-                      ),
+              stream: RepositoryRegistry.onlineGame.watchCurrentSession(
+                widget.session.room,
+              ),
+              initialData: widget.session,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Não foi possível atualizar a partida: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70),
                     ),
                   );
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                });
+                }
 
-                return const SizedBox.shrink();
-              }
+                final session = snapshot.data ?? widget.session;
+                final roomPlayer = _roomPlayerById(
+                  session.room,
+                  widget.currentPlayerId,
+                );
 
-              final gameState = session.gameState;
-              final currentPlayer = gameState.currentPlayer;
-              final player = currentDevicePlayer(gameState);
-              final isCurrentPlayer = player.id == currentPlayer.id;
-              final hasPendingEffect = session.pendingEffect != null;
-              final disconnectedPlayers = session.room.players.where((roomPlayer) {
-                return !roomPlayer.isConnected &&
-                    !roomPlayer.id.startsWith('placeholder_player_');
-              }).toList();
-              final disconnectedBlockingPlayers =
-                  _disconnectedBlockingPlayers(session);
-              final currentDeviceIsHost =
-                  roomPlayer.id == session.room.hostPlayerId;
+                if (roomPlayer == null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    membershipStore.clear();
 
-              _schedulePendingEffectFocus(session.pendingEffect);
-              _schedulePendingEffectReconciliation(session);
+                    if (!mounted) {
+                      return;
+                    }
 
-              if (gameState.roundFinished && !hasPendingEffect) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    openRoundResult(session);
-                  }
-                });
-              }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Você não faz mais parte desta partida.'),
+                      ),
+                    );
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  });
 
-              return ListView(
-                controller: _scrollController,
-                children: [
-                  const Text(
-                    'Partida Online',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                  return const SizedBox.shrink();
+                }
+
+                final gameState = session.gameState;
+                final currentPlayer = gameState.currentPlayer;
+                final player = currentDevicePlayer(gameState);
+                final isCurrentPlayer = player.id == currentPlayer.id;
+                final hasPendingEffect = session.pendingEffect != null;
+                final disconnectedPlayers = session.room.players.where((
+                  roomPlayer,
+                ) {
+                  return !roomPlayer.isConnected &&
+                      !roomPlayer.id.startsWith('placeholder_player_');
+                }).toList();
+                final disconnectedBlockingPlayers =
+                    _disconnectedBlockingPlayers(session);
+                final currentDeviceIsHost =
+                    roomPlayer.id == session.room.hostPlayerId;
+
+                _schedulePendingEffectFocus(session.pendingEffect);
+                _schedulePendingEffectReconciliation(session);
+
+                if (gameState.roundFinished && !hasPendingEffect) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      openRoundResult(session);
+                    }
+                  });
+                }
+
+                return ListView(
+                  controller: _scrollController,
+                  children: [
+                    const Text(
+                      'Partida Online',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Você está jogando como ${player.name}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
+                    const SizedBox(height: 8),
+                    Text(
+                      'Você está jogando como ${player.name}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    hasPendingEffect
-                        ? 'Resolvendo efeito'
-                        : 'Vez de ${currentPlayer.name}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      color: Color(0xFFE7C76F),
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    Text(
+                      hasPendingEffect
+                          ? 'Resolvendo efeito'
+                          : 'Vez de ${currentPlayer.name}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Color(0xFFE7C76F),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (session.room.systemMessage != null) ...[
-                    TransientSystemMessageCard(
-                      message: session.room.systemMessage!,
-                      timestamp: session.room.systemMessageAt,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (disconnectedPlayers.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    if (session.room.systemMessage != null) ...[
+                      TransientSystemMessageCard(
+                        message: session.room.systemMessage!,
+                        timestamp: session.room.systemMessageAt,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (disconnectedPlayers.isNotEmpty) ...[
+                      Card(
+                        color: const Color(0xFF221229),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.wifi_off,
+                                    color: Color(0xFFE7C76F),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Jogadores desconectados',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFE7C76F),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ...disconnectedPlayers.map((disconnectedPlayer) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${disconnectedPlayer.name} está desconectado.',
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                      ),
+                                      if (currentDeviceIsHost)
+                                        Wrap(
+                                          spacing: 4,
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: () async {
+                                                await RepositoryRegistry
+                                                    .onlineGame
+                                                    .updatePlayerConnection(
+                                                      roomId: session.room.id,
+                                                      playerId:
+                                                          disconnectedPlayer.id,
+                                                      isConnected: true,
+                                                    );
+                                              },
+                                              icon: const Icon(
+                                                Icons.person_add_alt_1,
+                                              ),
+                                              label: const Text('Readmitir'),
+                                            ),
+                                            TextButton.icon(
+                                              onPressed: () async {
+                                                await RepositoryRegistry
+                                                    .onlineGame
+                                                    .removePlayer(
+                                                      roomId: session.room.id,
+                                                      actingPlayerId: widget
+                                                          .currentPlayerId,
+                                                      removedPlayerId:
+                                                          disconnectedPlayer.id,
+                                                    );
+                                              },
+                                              icon: const Icon(
+                                                Icons.person_remove,
+                                              ),
+                                              label: const Text('Remover'),
+                                            ),
+                                          ],
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (disconnectedBlockingPlayers.isNotEmpty) ...[
+                      _DisconnectedPendingEffectCard(
+                        players: disconnectedBlockingPlayers,
+                        currentDeviceIsHost: currentDeviceIsHost,
+                        onRemovePlayer: (playerId) async {
+                          await RepositoryRegistry.onlineGame.removePlayer(
+                            roomId: session.room.id,
+                            actingPlayerId: widget.currentPlayerId,
+                            removedPlayerId: playerId,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (session.pendingEffect != null) ...[
+                      KeyedSubtree(
+                        key: _pendingEffectCardKey,
+                        child: _OnlinePendingEffectCard(
+                          session: session,
+                          currentPlayerId: widget.currentPlayerId,
+                          isResolvingEffect: isResolvingEffect,
+                          onDetectiveTargetSelected: (target) {
+                            resolveDetectiveTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onTotoTargetSelected: (target) {
+                            selectTotoTarget(session: session, target: target);
+                          },
+                          onTotoCardSelected: (card) {
+                            resolveTotoCard(
+                              session: session,
+                              revealedCard: card,
+                            );
+                          },
+                          onTotoWithoutTarget: () {
+                            skipTotoWithoutTarget(session);
+                          },
+                          onHandcuffsTargetSelected: (target) {
+                            resolveHandcuffsTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onHandcuffsWithoutTarget: () {
+                            skipHandcuffsWithoutTarget(session);
+                          },
+                          onAccompliceTargetSelected: (target) {
+                            selectForcedDiscardTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onAccompliceCardSelected: (card) {
+                            resolveForcedDiscardCard(
+                              session: session,
+                              cardToDiscard: card,
+                            );
+                          },
+                          onAccompliceWithoutTarget: () {
+                            skipForcedDiscardWithoutTarget(session);
+                          },
+                          onPoisonedCupTargetSelected: (target) {
+                            selectForcedDiscardTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onPoisonedCupCardSelected: (card) {
+                            resolveForcedDiscardCard(
+                              session: session,
+                              cardToDiscard: card,
+                            );
+                          },
+                          onPoisonedCupWithoutTarget: () {
+                            skipForcedDiscardWithoutTarget(session);
+                          },
+                          onWitnessTargetSelected: (target) {
+                            selectWitnessTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onWitnessContinueWithoutExchange: () {
+                            finishWitnessWithoutExchange(session);
+                          },
+                          onWitnessCardSelected: (card) {
+                            selectWitnessCardForExchange(
+                              session: session,
+                              witnessCard: card,
+                            );
+                          },
+                          onWitnessExchangeCardSelected: (card) {
+                            resolveWitnessExchangeCard(
+                              session: session,
+                              targetCard: card,
+                            );
+                          },
+                          onWitnessWithoutTarget: () {
+                            skipWitnessWithoutTarget(session);
+                          },
+                          onFamilyBabyReveal: () {
+                            revealFamilyBaby(session);
+                          },
+                          onFamilyBabyContinue: () {
+                            finishFamilyBaby(session);
+                          },
+                          onProtectionCancelSelected: (protection) {
+                            resolveProtectionCancelTarget(
+                              session: session,
+                              protection: protection,
+                            );
+                          },
+                          onProtectionCancelWithoutTarget: () {
+                            skipProtectionCancelWithoutTarget(session);
+                          },
+                          onSwapTargetSelected: (target) {
+                            selectSwapTarget(session: session, target: target);
+                          },
+                          onSwapActingCardSelected: (card) {
+                            selectSwapActingCard(session: session, card: card);
+                          },
+                          onSwapTargetCardSelected: (card) {
+                            resolveSwapTargetCard(session: session, card: card);
+                          },
+                          onSwapWithoutTarget: () {
+                            skipSwapWithoutTarget(session);
+                          },
+                          onShareCardSelected: (card) {
+                            selectShareCard(session: session, card: card);
+                          },
+                          onShareWithoutParticipants: () {
+                            skipShareWithoutParticipants(session);
+                          },
+                          onRumorsCardSelected: (card) {
+                            selectRumorsCard(session: session, card: card);
+                          },
+                          onRumorsWithoutCards: () {
+                            skipRumorsWithoutCards(session);
+                          },
+                          onFrenzyCardSelected: (card) {
+                            selectFrenzyCard(session: session, card: card);
+                          },
+                          onFrenzyWithoutParticipants: () {
+                            skipFrenzyWithoutParticipants(session);
+                          },
+                          onFrenzyFinalize: () {
+                            finalizeFrenzyShuffle(session);
+                          },
+                          onButlerTargetSelected: (target) {
+                            resolveButlerTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onButlerWithoutTarget: () {
+                            skipButlerWithoutTarget(session);
+                          },
+                          onPortraitTargetSelected: (target) {
+                            resolvePortraitTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onPortraitContinue: () {
+                            finishPortraitEffect(session);
+                          },
+                          onSpyFirstTargetSelected: (target) {
+                            selectSpyFirstTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onSpySecondTargetSelected: (target) {
+                            selectSpySecondTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onSpyContinue: () {
+                            finishSpyEffect(session);
+                          },
+                          onBrokenMaskTargetSelected: (target) {
+                            selectBrokenMaskTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onBrokenMaskCardSelected: (card) {
+                            resolveBrokenMaskCard(
+                              session: session,
+                              revealedCard: card,
+                            );
+                          },
+                          onBrokenMaskWithoutTarget: () {
+                            skipBrokenMaskWithoutTarget(session);
+                          },
+                          onUnfinishedBusinessTargetSelected: (target) {
+                            resolveUnfinishedBusinessTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onUnfinishedBusinessWithoutTarget: () {
+                            skipUnfinishedBusinessWithoutTarget(session);
+                          },
+                          onLullabyReveal: () {
+                            revealLullabyEffect(session);
+                          },
+                          onLullabyContinue: () {
+                            finishLullabyPendingEffect(session);
+                          },
+                          onSealedCardTargetSelected: (target) {
+                            resolveSealedCardTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onSealedCardWithoutTarget: () {
+                            skipSealedCardWithoutTarget(session);
+                          },
+                          onSecretOathTargetSelected: (target) {
+                            resolveSecretOathTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onSilenceContinue: () {
+                            resolveSilenceNotice(session);
+                          },
+                          onBetrayalTargetSelected: (target) {
+                            resolveBetrayalTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onBetrayalWithoutTarget: () {
+                            skipBetrayalWithoutTarget(session);
+                          },
+                          onThreeDestiniesCardSelected: (card) {
+                            resolveThreeDestiniesCard(
+                              session: session,
+                              selectedCard: card,
+                            );
+                          },
+                          onThreeDestiniesWithoutCards: () {
+                            skipThreeDestiniesWithoutCards(session);
+                          },
+                          onGhostSourceSelected: (card) {
+                            resolveGhostCopyCard(
+                              session: session,
+                              sourceCard: card,
+                            );
+                          },
+                          onGhostWithoutSource: () {
+                            skipGhostCopyWithoutSource(session);
+                          },
+                          onPianoSetupTargetSelected: (target) {
+                            resolvePianoSetupTarget(
+                              session: session,
+                              target: target,
+                            );
+                          },
+                          onPianoExecution: () {
+                            resolvePianoExecution(session);
+                          },
+                          onPublicNoticeSubmitted: (message) {
+                            submitPublicNoticeMessage(
+                              session: session,
+                              message: message,
+                            );
+                          },
+                          onPublicNoticeSkipped: () {
+                            submitPublicNoticeMessage(
+                              session: session,
+                              message: '',
+                              allowEmptyMessage: true,
+                            );
+                          },
+                          onAcknowledge: () {
+                            acknowledgePendingEffect(session);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     Card(
                       color: const Color(0xFF221229),
                       child: Padding(
@@ -3909,459 +4269,71 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
-                              children: [
-                                Icon(
-                                  Icons.wifi_off,
-                                  color: Color(0xFFE7C76F),
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Jogadores desconectados',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFE7C76F),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            const Text(
+                              'Sua mão',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFE7C76F),
+                              ),
                             ),
                             const SizedBox(height: 8),
-                            ...disconnectedPlayers.map((disconnectedPlayer) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '${disconnectedPlayer.name} está desconectado.',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                        ),
+                            Text(
+                              hasPendingEffect
+                                  ? 'Aguarde a resolução do efeito.'
+                                  : isCurrentPlayer
+                                  ? 'Escolha uma carta para jogar.'
+                                  : 'Aguardando ${currentPlayer.name} jogar.',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 12),
+                            if (player.hand.isEmpty)
+                              const Text(
+                                'Nenhuma carta na mão.',
+                                style: TextStyle(color: Colors.white54),
+                              )
+                            else
+                              ...player.hand.map((card) {
+                                final canPlay =
+                                    isCurrentPlayer &&
+                                    !isSavingMove &&
+                                    !hasPendingEffect;
+
+                                return Card(
+                                  color: const Color(0xFF120818),
+                                  child: ListTile(
+                                    title: Text(
+                                      card.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    if (currentDeviceIsHost)
-                                      Wrap(
-                                        spacing: 4,
-                                        children: [
-                                          TextButton.icon(
-                                            onPressed: () async {
-                                              await RepositoryRegistry.onlineGame
-                                                  .updatePlayerConnection(
-                                                roomId: session.room.id,
-                                                playerId: disconnectedPlayer.id,
-                                                isConnected: true,
-                                              );
-                                            },
-                                            icon: const Icon(Icons.person_add_alt_1),
-                                            label: const Text('Readmitir'),
-                                          ),
-                                          TextButton.icon(
-                                            onPressed: () async {
-                                              await RepositoryRegistry.onlineGame
-                                                  .removePlayer(
-                                                roomId: session.room.id,
-                                                actingPlayerId: widget.currentPlayerId,
-                                                removedPlayerId:
-                                                    disconnectedPlayer.id,
-                                              );
-                                            },
-                                            icon: const Icon(Icons.person_remove),
-                                            label: const Text('Remover'),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }),
+                                    subtitle: Text(card.shortText),
+                                    trailing: Icon(
+                                      canPlay ? Icons.play_arrow : Icons.lock,
+                                    ),
+                                    onTap: canPlay
+                                        ? () => playOnlineCard(
+                                            session: session,
+                                            card: card,
+                                          )
+                                        : null,
+                                  ),
+                                );
+                              }),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                  ],
-                  if (disconnectedBlockingPlayers.isNotEmpty) ...[
-                    _DisconnectedPendingEffectCard(
-                      players: disconnectedBlockingPlayers,
-                      currentDeviceIsHost: currentDeviceIsHost,
-                      onRemovePlayer: (playerId) async {
-                        await RepositoryRegistry.onlineGame.removePlayer(
-                          roomId: session.room.id,
-                          actingPlayerId: widget.currentPlayerId,
-                          removedPlayerId: playerId,
-                        );
-                      },
+                    _OnlineTableCard(
+                      gameState: gameState,
+                      currentPlayer: currentPlayer,
+                      activeProtections: session.activeProtections,
                     ),
-                    const SizedBox(height: 16),
                   ],
-                  if (session.pendingEffect != null) ...[
-                    KeyedSubtree(
-                      key: _pendingEffectCardKey,
-                      child: _OnlinePendingEffectCard(
-                        session: session,
-                        currentPlayerId: widget.currentPlayerId,
-                        isResolvingEffect: isResolvingEffect,
-                        onDetectiveTargetSelected: (target) {
-                          resolveDetectiveTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onTotoTargetSelected: (target) {
-                          selectTotoTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onTotoCardSelected: (card) {
-                          resolveTotoCard(
-                            session: session,
-                            revealedCard: card,
-                          );
-                        },
-                        onTotoWithoutTarget: () {
-                          skipTotoWithoutTarget(session);
-                        },
-                        onHandcuffsTargetSelected: (target) {
-                          resolveHandcuffsTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onHandcuffsWithoutTarget: () {
-                          skipHandcuffsWithoutTarget(session);
-                        },
-                        onAccompliceTargetSelected: (target) {
-                          selectForcedDiscardTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onAccompliceCardSelected: (card) {
-                          resolveForcedDiscardCard(
-                            session: session,
-                            cardToDiscard: card,
-                          );
-                        },
-                        onAccompliceWithoutTarget: () {
-                          skipForcedDiscardWithoutTarget(session);
-                        },
-                        onPoisonedCupTargetSelected: (target) {
-                          selectForcedDiscardTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onPoisonedCupCardSelected: (card) {
-                          resolveForcedDiscardCard(
-                            session: session,
-                            cardToDiscard: card,
-                          );
-                        },
-                        onPoisonedCupWithoutTarget: () {
-                          skipForcedDiscardWithoutTarget(session);
-                        },
-                        onWitnessTargetSelected: (target) {
-                          selectWitnessTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onWitnessContinueWithoutExchange: () {
-                          finishWitnessWithoutExchange(session);
-                        },
-                        onWitnessCardSelected: (card) {
-                          selectWitnessCardForExchange(
-                            session: session,
-                            witnessCard: card,
-                          );
-                        },
-                        onWitnessExchangeCardSelected: (card) {
-                          resolveWitnessExchangeCard(
-                            session: session,
-                            targetCard: card,
-                          );
-                        },
-                        onWitnessWithoutTarget: () {
-                          skipWitnessWithoutTarget(session);
-                        },
-                        onFamilyBabyReveal: () {
-                          revealFamilyBaby(session);
-                        },
-                        onFamilyBabyContinue: () {
-                          finishFamilyBaby(session);
-                        },
-                        onProtectionCancelSelected: (protection) {
-                          resolveProtectionCancelTarget(
-                            session: session,
-                            protection: protection,
-                          );
-                        },
-                        onProtectionCancelWithoutTarget: () {
-                          skipProtectionCancelWithoutTarget(session);
-                        },
-                        onSwapTargetSelected: (target) {
-                          selectSwapTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onSwapActingCardSelected: (card) {
-                          selectSwapActingCard(
-                            session: session,
-                            card: card,
-                          );
-                        },
-                        onSwapTargetCardSelected: (card) {
-                          resolveSwapTargetCard(
-                            session: session,
-                            card: card,
-                          );
-                        },
-                        onSwapWithoutTarget: () {
-                          skipSwapWithoutTarget(session);
-                        },
-                        onShareCardSelected: (card) {
-                          selectShareCard(
-                            session: session,
-                            card: card,
-                          );
-                        },
-                        onShareWithoutParticipants: () {
-                          skipShareWithoutParticipants(session);
-                        },
-                        onRumorsCardSelected: (card) {
-                          selectRumorsCard(
-                            session: session,
-                            card: card,
-                          );
-                        },
-                        onRumorsWithoutCards: () {
-                          skipRumorsWithoutCards(session);
-                        },
-                        onFrenzyCardSelected: (card) {
-                          selectFrenzyCard(
-                            session: session,
-                            card: card,
-                          );
-                        },
-                        onFrenzyWithoutParticipants: () {
-                          skipFrenzyWithoutParticipants(session);
-                        },
-                        onFrenzyFinalize: () {
-                          finalizeFrenzyShuffle(session);
-                        },
-                        onButlerTargetSelected: (target) {
-                          resolveButlerTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onButlerWithoutTarget: () {
-                          skipButlerWithoutTarget(session);
-                        },
-                        onPortraitTargetSelected: (target) {
-                          resolvePortraitTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onPortraitContinue: () {
-                          finishPortraitEffect(session);
-                        },
-                        onSpyFirstTargetSelected: (target) {
-                          selectSpyFirstTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onSpySecondTargetSelected: (target) {
-                          selectSpySecondTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onSpyContinue: () {
-                          finishSpyEffect(session);
-                        },
-                        onBrokenMaskTargetSelected: (target) {
-                          selectBrokenMaskTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onBrokenMaskCardSelected: (card) {
-                          resolveBrokenMaskCard(
-                            session: session,
-                            revealedCard: card,
-                          );
-                        },
-                        onBrokenMaskWithoutTarget: () {
-                          skipBrokenMaskWithoutTarget(session);
-                        },
-                        onUnfinishedBusinessTargetSelected: (target) {
-                          resolveUnfinishedBusinessTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onUnfinishedBusinessWithoutTarget: () {
-                          skipUnfinishedBusinessWithoutTarget(session);
-                        },
-                        onLullabyReveal: () {
-                          revealLullabyEffect(session);
-                        },
-                        onLullabyContinue: () {
-                          finishLullabyPendingEffect(session);
-                        },
-                        onSealedCardTargetSelected: (target) {
-                          resolveSealedCardTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onSealedCardWithoutTarget: () {
-                          skipSealedCardWithoutTarget(session);
-                        },
-                        onSecretOathTargetSelected: (target) {
-                          resolveSecretOathTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onSilenceContinue: () {
-                          resolveSilenceNotice(session);
-                        },
-                        onBetrayalTargetSelected: (target) {
-                          resolveBetrayalTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onBetrayalWithoutTarget: () {
-                          skipBetrayalWithoutTarget(session);
-                        },
-                        onThreeDestiniesCardSelected: (card) {
-                          resolveThreeDestiniesCard(
-                            session: session,
-                            selectedCard: card,
-                          );
-                        },
-                        onThreeDestiniesWithoutCards: () {
-                          skipThreeDestiniesWithoutCards(session);
-                        },
-                        onGhostSourceSelected: (card) {
-                          resolveGhostCopyCard(
-                            session: session,
-                            sourceCard: card,
-                          );
-                        },
-                        onGhostWithoutSource: () {
-                          skipGhostCopyWithoutSource(session);
-                        },
-                        onPianoSetupTargetSelected: (target) {
-                          resolvePianoSetupTarget(
-                            session: session,
-                            target: target,
-                          );
-                        },
-                        onPianoExecution: () {
-                          resolvePianoExecution(session);
-                        },
-                        onPublicNoticeSubmitted: (message) {
-                          submitPublicNoticeMessage(
-                            session: session,
-                            message: message,
-                          );
-                        },
-                        onPublicNoticeSkipped: () {
-                          submitPublicNoticeMessage(
-                            session: session,
-                            message: '',
-                            allowEmptyMessage: true,
-                          );
-                        },
-                        onAcknowledge: () {
-                          acknowledgePendingEffect(session);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  Card(
-                    color: const Color(0xFF221229),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Sua mão',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFE7C76F),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            hasPendingEffect
-                                ? 'Aguarde a resolução do efeito.'
-                                : isCurrentPlayer
-                                    ? 'Escolha uma carta para jogar.'
-                                    : 'Aguardando ${currentPlayer.name} jogar.',
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                          const SizedBox(height: 12),
-                          if (player.hand.isEmpty)
-                            const Text(
-                              'Nenhuma carta na mão.',
-                              style: TextStyle(color: Colors.white54),
-                            )
-                          else
-                            ...player.hand.map((card) {
-                              final canPlay = isCurrentPlayer &&
-                                  !isSavingMove &&
-                                  !hasPendingEffect;
-
-                              return Card(
-                                color: const Color(0xFF120818),
-                                child: ListTile(
-                                  title: Text(
-                                    card.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(card.shortText),
-                                  trailing: Icon(
-                                    canPlay ? Icons.play_arrow : Icons.lock,
-                                  ),
-                                  onTap: canPlay
-                                      ? () => playOnlineCard(
-                                            session: session,
-                                            card: card,
-                                          )
-                                      : null,
-                                ),
-                              );
-                            }),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _OnlineTableCard(
-                    gameState: gameState,
-                    currentPlayer: currentPlayer,
-                    activeProtections: session.activeProtections,
-                  ),
-                ],
-              );
-            },
+                );
+              },
             ),
           ),
         ),
@@ -4978,10 +4950,12 @@ class _PianoSetupPendingEffectCard extends StatelessWidget {
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
 
     return Card(
       color: const Color(0xFF221229),
@@ -5015,9 +4989,7 @@ class _PianoSetupPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -5042,23 +5014,23 @@ class _PianoSetupPendingEffectCard extends StatelessWidget {
               ...session.gameState.players
                   .where((player) => player.hand.isNotEmpty)
                   .map((player) {
-                return Card(
-                  color: const Color(0xFF120818),
-                  child: ListTile(
-                    title: Text(
-                      player.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text('${player.hand.length} cartas na mão'),
-                    trailing: const Icon(Icons.queue_music),
-                    onTap: isResolvingEffect
-                        ? null
-                        : () {
-                            onTargetSelected(player);
-                          },
-                  ),
-                );
-              }),
+                    return Card(
+                      color: const Color(0xFF120818),
+                      child: ListTile(
+                        title: Text(
+                          player.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text('${player.hand.length} cartas na mão'),
+                        trailing: const Icon(Icons.queue_music),
+                        onTap: isResolvingEffect
+                            ? null
+                            : () {
+                                onTargetSelected(player);
+                              },
+                      ),
+                    );
+                  }),
             ],
           ],
         ),
@@ -5130,10 +5102,7 @@ class _PianoExecutionPendingEffectCard extends StatelessWidget {
 }
 
 class _PendingEffectTitle extends StatelessWidget {
-  const _PendingEffectTitle({
-    required this.icon,
-    required this.title,
-  });
+  const _PendingEffectTitle({required this.icon, required this.title});
 
   final IconData icon;
   final String title;
@@ -5183,14 +5152,16 @@ class _ProtectionCancelPendingEffectCard extends StatelessWidget {
       (player) => player.id == effect.actingPlayerId,
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final effectWasResolved = effect.resultMessage != null;
 
     return Card(
@@ -5255,9 +5226,7 @@ class _ProtectionCancelPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -5349,9 +5318,7 @@ class _ProtectionCancelTargetStep extends StatelessWidget {
               icon: const Icon(Icons.shield),
               label: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Text(
-                  '${targetPlayer.name} - ${protection.cardName}',
-                ),
+                child: Text('${targetPlayer.name} - ${protection.cardName}'),
               ),
             ),
           );
@@ -5385,14 +5352,16 @@ class _ButlerPendingEffectCard extends StatelessWidget {
       (player) => player.id == effect.actingPlayerId,
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final effectWasResolved = effect.resultMessage != null;
     final targetOptions = session.gameState.players
         .where((player) => player.hand.isNotEmpty)
@@ -5497,9 +5466,7 @@ class _ButlerPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -5542,7 +5509,9 @@ class _PortraitPendingEffectCard extends StatelessWidget {
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final targetWasChosen = effect.targetPlayerId != null;
     final targetOptions = session.gameState.players
-        .where((player) => player.id != actingPlayer.id && player.hand.isNotEmpty)
+        .where(
+          (player) => player.id != actingPlayer.id && player.hand.isNotEmpty,
+        )
         .toList();
     final targetPlayer = targetWasChosen
         ? session.gameState.players.firstWhere(
@@ -5688,7 +5657,9 @@ class _SpyPendingEffectCard extends StatelessWidget {
     final firstTargetWasChosen = effect.targetPlayerId != null;
     final secondTargetWasChosen = effect.secondaryCardName != null;
     final targetOptions = session.gameState.players
-        .where((player) => player.id != actingPlayer.id && player.hand.isNotEmpty)
+        .where(
+          (player) => player.id != actingPlayer.id && player.hand.isNotEmpty,
+        )
         .toList();
     final secondTargetOptions = targetOptions.where((player) {
       return player.id != effect.targetPlayerId;
@@ -5888,14 +5859,16 @@ class _BrokenMaskPendingEffectCard extends StatelessWidget {
             (player) => player.id == effect.targetPlayerId,
           );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       return player.id != actingPlayer.id && player.hand.isNotEmpty;
     }).toList();
@@ -6078,14 +6051,16 @@ class _UnfinishedBusinessPendingEffectCard extends StatelessWidget {
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final effectWasResolved = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players
         .where((player) => player.id != actingPlayer.id)
         .toList();
@@ -6324,14 +6299,16 @@ class _SealedCardPendingEffectCard extends StatelessWidget {
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final effectWasResolved = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       return player.id != actingPlayer.id && player.hand.isNotEmpty;
     }).toList();
@@ -6464,14 +6441,16 @@ class _SecretOathPendingEffectCard extends StatelessWidget {
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final effectWasResolved = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final targets = session.gameState.players
         .where((player) => player.id != actingPlayer.id)
         .toList();
@@ -6589,14 +6568,16 @@ class _SilencePendingEffectCard extends StatelessWidget {
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final effectWasResolved = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
 
     return Card(
       color: const Color(0xFF221229),
@@ -6706,14 +6687,16 @@ class _BetrayalPendingEffectCard extends StatelessWidget {
     );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final effectWasResolved = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final targets = session.gameState.players.where((player) {
       return player.playedCards.any((card) => card.templateId == 'cumplice');
     }).toList();
@@ -6866,14 +6849,16 @@ class _PublicNoticePendingEffectCardState
     final currentDeviceIsActingPlayer =
         widget.currentPlayerId == actingPlayer.id;
     final messageWasSubmitted = effect.resultMessage != null;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(widget.currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      widget.currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
 
     return Card(
       color: const Color(0xFF221229),
@@ -7016,14 +7001,16 @@ class _SwapPendingEffectCard extends StatelessWidget {
           );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       return player.id != actingPlayer.id && player.hand.isNotEmpty;
     }).toList();
@@ -7244,18 +7231,22 @@ class _SharePendingEffectCard extends StatelessWidget {
       (player) => player.id == currentPlayerId,
       orElse: () => session.gameState.currentPlayer,
     );
-    final currentPlayerAlreadySelected =
-        effect.completedPlayerIds.contains(currentPlayerId);
-    final currentPlayerIsParticipant =
-        effect.participantPlayerIds.contains(currentPlayerId);
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final currentPlayerAlreadySelected = effect.completedPlayerIds.contains(
+      currentPlayerId,
+    );
+    final currentPlayerIsParticipant = effect.participantPlayerIds.contains(
+      currentPlayerId,
+    );
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final selectedCount = effect.completedPlayerIds.length;
     final effectWasResolved = effect.resultMessage != null;
     final currentPlayerLeftNeighbor = _playerToRightInGameState(
@@ -7438,18 +7429,22 @@ class _RumorsPendingEffectCard extends StatelessWidget {
       gameState: session.gameState,
       currentPlayer: currentPlayer,
     );
-    final currentPlayerAlreadySelected =
-        effect.completedPlayerIds.contains(currentPlayerId);
-    final currentPlayerIsParticipant =
-        effect.participantPlayerIds.contains(currentPlayerId);
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final currentPlayerAlreadySelected = effect.completedPlayerIds.contains(
+      currentPlayerId,
+    );
+    final currentPlayerIsParticipant = effect.participantPlayerIds.contains(
+      currentPlayerId,
+    );
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final selectedCount = effect.completedPlayerIds.length;
     final effectWasResolved = effect.resultMessage != null;
 
@@ -7638,18 +7633,22 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
       (player) => player.id == currentPlayerId,
       orElse: () => session.gameState.currentPlayer,
     );
-    final currentPlayerAlreadySelected =
-        effect.completedPlayerIds.contains(currentPlayerId);
-    final currentPlayerIsParticipant =
-        effect.participantPlayerIds.contains(currentPlayerId);
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final currentPlayerAlreadySelected = effect.completedPlayerIds.contains(
+      currentPlayerId,
+    );
+    final currentPlayerIsParticipant = effect.participantPlayerIds.contains(
+      currentPlayerId,
+    );
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final selectedCount = effect.completedPlayerIds.length;
     final effectWasResolved = effect.resultMessage != null;
     final previewWasPrepared = effect.previewCardNames.isNotEmpty;
@@ -7709,7 +7708,8 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
                             color: isCurrentViewer && receivedCardName != null
                                 ? const Color(0xFFE7C76F)
                                 : null,
-                            fontWeight: isCurrentViewer && receivedCardName != null
+                            fontWeight:
+                                isCurrentViewer && receivedCardName != null
                                 ? FontWeight.bold
                                 : FontWeight.normal,
                           ),
@@ -7991,14 +7991,16 @@ class _WitnessPendingEffectCard extends StatelessWidget {
           );
     final currentDeviceIsWitness = currentPlayerId == witnessPlayer.id;
     final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       return player.id != witnessPlayer.id && player.hand.isNotEmpty;
     }).toList();
@@ -8077,9 +8079,7 @@ class _WitnessPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -8097,7 +8097,6 @@ class _WitnessPendingEffectCard extends StatelessWidget {
     );
   }
 }
-
 
 class _WitnessTargetStep extends StatelessWidget {
   const _WitnessTargetStep({
@@ -8389,8 +8388,7 @@ class _EffectHandPanel extends StatelessWidget {
           else
             ...cards.map((card) {
               final suspicious =
-                  card.templateId == 'culpado' ||
-                  card.templateId == 'cumplice';
+                  card.templateId == 'culpado' || card.templateId == 'cumplice';
               final highlighted = highlightSuspiciousCards && suspicious;
 
               return ListTile(
@@ -8398,9 +8396,7 @@ class _EffectHandPanel extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
                   highlighted ? Icons.warning_amber : Icons.visibility,
-                  color: highlighted
-                      ? const Color(0xFFE7C76F)
-                      : Colors.white70,
+                  color: highlighted ? const Color(0xFFE7C76F) : Colors.white70,
                 ),
                 title: Text(card.name),
                 subtitle: Text(card.shortText),
@@ -8441,18 +8437,21 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
             (player) => player.id == effect.targetPlayerId,
           );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       final isActingPlayer = player.id == actingPlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
-      final isProtected = _blockingProtectionForPlayer(
+      final isProtected =
+          _blockingProtectionForPlayer(
             session: session,
             player: player,
             effectType: OnlineEffectType.handcuffs,
@@ -8483,10 +8482,7 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
           children: [
             const Row(
               children: [
-                Icon(
-                  Icons.link,
-                  color: Color(0xFFE7C76F),
-                ),
+                Icon(Icons.link, color: Color(0xFFE7C76F)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -8590,9 +8586,7 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -8611,14 +8605,12 @@ class _HandcuffsPendingEffectCard extends StatelessWidget {
   }
 }
 
-typedef InitialForcedDiscardStatusBuilder = String Function(Player actingPlayer);
-typedef TargetSelectedForcedDiscardStatusBuilder = String Function(
-  Player actingPlayer,
-  Player targetPlayer,
-);
-typedef ResolvedForcedDiscardStatusBuilder = String Function(
-  Player targetPlayer,
-);
+typedef InitialForcedDiscardStatusBuilder =
+    String Function(Player actingPlayer);
+typedef TargetSelectedForcedDiscardStatusBuilder =
+    String Function(Player actingPlayer, Player targetPlayer);
+typedef ResolvedForcedDiscardStatusBuilder =
+    String Function(Player targetPlayer);
 
 class _ForcedDiscardPendingEffectCard extends StatelessWidget {
   const _ForcedDiscardPendingEffectCard({
@@ -8664,14 +8656,16 @@ class _ForcedDiscardPendingEffectCard extends StatelessWidget {
           );
     final currentDeviceIsActingPlayer = currentPlayerId == actingPlayer.id;
     final currentDeviceIsTarget = currentPlayerId == targetPlayer?.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       final isActingPlayer = player.id == actingPlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
@@ -8690,10 +8684,7 @@ class _ForcedDiscardPendingEffectCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  icon,
-                  color: const Color(0xFFE7C76F),
-                ),
+                Icon(icon, color: const Color(0xFFE7C76F)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -8815,9 +8806,7 @@ class _ForcedDiscardPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -8936,18 +8925,21 @@ class _TotoPendingEffectCard extends StatelessWidget {
             (player) => player.id == effect.targetPlayerId,
           );
     final currentDeviceIsToto = currentPlayerId == totoPlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       final isTotoPlayer = player.id == totoPlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
-      final isProtected = _blockingProtectionForPlayer(
+      final isProtected =
+          _blockingProtectionForPlayer(
             session: session,
             player: player,
             effectType: OnlineEffectType.toto,
@@ -8968,10 +8960,7 @@ class _TotoPendingEffectCard extends StatelessWidget {
           children: [
             const Row(
               children: [
-                Icon(
-                  Icons.pets,
-                  color: Color(0xFFE7C76F),
-                ),
+                Icon(Icons.pets, color: Color(0xFFE7C76F)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -9085,9 +9074,7 @@ class _TotoPendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -9155,10 +9142,7 @@ class _HiddenTotoCards extends StatelessWidget {
               children: [
                 const Icon(Icons.help_outline),
                 const SizedBox(height: 8),
-                Text(
-                  'Carta ${index + 1}',
-                  textAlign: TextAlign.center,
-                ),
+                Text('Carta ${index + 1}', textAlign: TextAlign.center),
               ],
             ),
           ),
@@ -9195,18 +9179,21 @@ class _DetectivePendingEffectCard extends StatelessWidget {
             (player) => player.id == effect.targetPlayerId,
           );
     final currentDeviceIsDetective = currentPlayerId == detectivePlayer.id;
-    final alreadyAcknowledged =
-        effect.acknowledgedPlayerIds.contains(currentPlayerId);
+    final alreadyAcknowledged = effect.acknowledgedPlayerIds.contains(
+      currentPlayerId,
+    );
     final expectedViewerIds = session.room.players
         .where((player) => !player.id.startsWith('placeholder_player_'))
         .map((player) => player.id)
         .toList();
-    final acknowledgedCount =
-        expectedViewerIds.where(effect.acknowledgedPlayerIds.contains).length;
+    final acknowledgedCount = expectedViewerIds
+        .where(effect.acknowledgedPlayerIds.contains)
+        .length;
     final availableTargets = session.gameState.players.where((player) {
       final isDetective = player.id == detectivePlayer.id;
       final hasCardsInHand = player.hand.isNotEmpty;
-      final isProtected = _blockingProtectionForPlayer(
+      final isProtected =
+          _blockingProtectionForPlayer(
             session: session,
             player: player,
             effectType: OnlineEffectType.detective,
@@ -9225,10 +9212,7 @@ class _DetectivePendingEffectCard extends StatelessWidget {
           children: [
             const Row(
               children: [
-                Icon(
-                  Icons.manage_search,
-                  color: Color(0xFFE7C76F),
-                ),
+                Icon(Icons.manage_search, color: Color(0xFFE7C76F)),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -9295,9 +9279,7 @@ class _DetectivePendingEffectCard extends StatelessWidget {
                     ? null
                     : onAcknowledge,
                 icon: Icon(
-                  alreadyAcknowledged
-                      ? Icons.check_circle
-                      : Icons.visibility,
+                  alreadyAcknowledged ? Icons.check_circle : Icons.visibility,
                 ),
                 label: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -9340,10 +9322,7 @@ class _DisconnectedPendingEffectCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
-                  Icons.pending_actions,
-                  color: Color(0xFFE7C76F),
-                ),
+                const Icon(Icons.pending_actions, color: Color(0xFFE7C76F)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -9502,9 +9481,7 @@ class _OnlineTableCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFF120818),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFE7C76F),
-                  ),
+                  border: Border.all(color: const Color(0xFFE7C76F)),
                 ),
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -9586,11 +9563,7 @@ class _OnlineTableCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       const Row(
                         children: [
-                          Icon(
-                            Icons.link,
-                            size: 18,
-                            color: Color(0xFFE7C76F),
-                          ),
+                          Icon(Icons.link, size: 18, color: Color(0xFFE7C76F)),
                           SizedBox(width: 6),
                           Text(
                             'Algemas',
@@ -9609,9 +9582,7 @@ class _OnlineTableCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: const Color(0xFF120818),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: const Color(0xFFE7C76F),
-                          ),
+                          border: Border.all(color: const Color(0xFFE7C76F)),
                         ),
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -9691,9 +9662,7 @@ class _OnlineTableCard extends StatelessWidget {
                               isFaceDown ? 'Carta selada' : card.name,
                             ),
                             backgroundColor: const Color(0xFF120818),
-                            side: const BorderSide(
-                              color: Color(0xFFE7C76F),
-                            ),
+                            side: const BorderSide(color: Color(0xFFE7C76F)),
                           );
                         }).toList(),
                       ),
@@ -9707,4 +9676,3 @@ class _OnlineTableCard extends StatelessWidget {
     );
   }
 }
-

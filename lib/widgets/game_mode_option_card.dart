@@ -17,15 +17,11 @@ class GameModeOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: selected
-          ? const Color(0xFF3A1A4A)
-          : const Color(0xFF221229),
+      color: selected ? const Color(0xFF3A1A4A) : const Color(0xFF221229),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: selected
-              ? const Color(0xFFE7C76F)
-              : Colors.white24,
+          color: selected ? const Color(0xFFE7C76F) : Colors.white24,
           width: selected ? 2 : 1,
         ),
       ),
@@ -38,12 +34,8 @@ class GameModeOptionCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                selected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-                color: selected
-                    ? const Color(0xFFE7C76F)
-                    : Colors.white54,
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? const Color(0xFFE7C76F) : Colors.white54,
               ),
               const SizedBox(width: 12),
               Expanded(

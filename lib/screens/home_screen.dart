@@ -16,7 +16,8 @@ class HomeScreen extends StatelessWidget {
           child: SingleChildScrollView(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height -
+                minHeight:
+                    MediaQuery.of(context).size.height -
                     MediaQuery.of(context).padding.top -
                     MediaQuery.of(context).padding.bottom -
                     48,
@@ -24,11 +25,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.masks,
-                    size: 72,
-                    color: Color(0xFFE7C76F),
-                  ),
+                  const Icon(Icons.masks, size: 72, color: Color(0xFFE7C76F)),
                   const SizedBox(height: 24),
                   const Text(
                     'Shadow House',
@@ -53,10 +50,7 @@ class HomeScreen extends StatelessWidget {
                   const Text(
                     'Ecos da Mansão',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 18, color: Colors.white70),
                   ),
                   const SizedBox(height: 56),
                   SizedBox(

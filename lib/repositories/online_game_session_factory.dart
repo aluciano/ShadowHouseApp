@@ -33,6 +33,7 @@ OnlineGameSession createOnlineGameSessionForRoom(OnlineRoom room) {
     code: room.code,
     hostPlayerId: room.hostPlayerId,
     players: readyPlayers,
+    participantUids: room.participantUids,
     gameMode: room.gameMode,
     createdAt: room.createdAt,
     status: OnlineRoomStatus.inProgress,

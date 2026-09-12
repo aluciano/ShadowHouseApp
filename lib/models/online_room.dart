@@ -8,6 +8,7 @@ class OnlineRoom {
     required this.code,
     required this.hostPlayerId,
     required this.players,
+    required this.participantUids,
     required this.gameMode,
     required this.createdAt,
     required this.status,
@@ -20,6 +21,7 @@ class OnlineRoom {
   final String code;
   final String hostPlayerId;
   final List<OnlinePlayer> players;
+  final List<String> participantUids;
   final GameMode gameMode;
   final DateTime createdAt;
   final OnlineRoomStatus status;
@@ -32,6 +34,7 @@ class OnlineRoom {
     String? code,
     String? hostPlayerId,
     List<OnlinePlayer>? players,
+    List<String>? participantUids,
     GameMode? gameMode,
     DateTime? createdAt,
     OnlineRoomStatus? status,
@@ -46,6 +49,7 @@ class OnlineRoom {
       code: code ?? this.code,
       hostPlayerId: hostPlayerId ?? this.hostPlayerId,
       players: players ?? this.players,
+      participantUids: participantUids ?? this.participantUids,
       gameMode: gameMode ?? this.gameMode,
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,

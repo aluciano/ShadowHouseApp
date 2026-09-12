@@ -61,7 +61,8 @@ class _BrokenMaskEffectScreenState extends State<BrokenMaskEffectScreen> {
               const SizedBox(height: 24),
               if (availableTargets.isEmpty)
                 _SingleActionCard(
-                  text: 'Não há outros jogadores com cartas na mão para revelar.',
+                  text:
+                      'Não há outros jogadores com cartas na mão para revelar.',
                   buttonLabel: 'Continuar',
                   onPressed: () {
                     resolveBrokenMaskEffect(gameState: widget.gameState);
@@ -147,11 +148,7 @@ class _BrokenMaskRevealCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Icon(
-              Icons.visibility,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.visibility, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 16),
             Text(
               'Carta revelada da mão de ${targetPlayer.name}:',

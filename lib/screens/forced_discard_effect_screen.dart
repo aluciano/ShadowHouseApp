@@ -36,7 +36,7 @@ class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final actingPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final availableTargets = widget.gameState.players.where((player) {
@@ -67,9 +67,7 @@ class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${actingPlayer.name}: ${widget.instructionText}',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               if (availableTargets.isEmpty)
@@ -79,11 +77,10 @@ class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
 
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
                       ),
-                          (route) => route.isFirst,
+                      (route) => route.isFirst,
                     );
                   },
                 )
@@ -98,76 +95,74 @@ class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
                   },
                 )
               else if (!targetConfirmedPrivacy)
-                  _PassToTargetCard(
-                    targetPlayer: selectedTarget!,
-                    onContinue: () {
-                      setState(() {
-                        targetConfirmedPrivacy = true;
-                      });
-                    },
-                    onBack: () {
-                      setState(() {
-                        selectedTarget = null;
-                        targetConfirmedPrivacy = false;
-                      });
-                    },
-                  )
-                else
-                  _DiscardSelectionCard(
-                    targetPlayer: selectedTarget!,
-                    onBack: () {
-                      setState(() {
-                        targetConfirmedPrivacy = false;
-                      });
-                    },
-                    onCardSelected: (card) {
-                      final target = selectedTarget!;
+                _PassToTargetCard(
+                  targetPlayer: selectedTarget!,
+                  onContinue: () {
+                    setState(() {
+                      targetConfirmedPrivacy = true;
+                    });
+                  },
+                  onBack: () {
+                    setState(() {
+                      selectedTarget = null;
+                      targetConfirmedPrivacy = false;
+                    });
+                  },
+                )
+              else
+                _DiscardSelectionCard(
+                  targetPlayer: selectedTarget!,
+                  onBack: () {
+                    setState(() {
+                      targetConfirmedPrivacy = false;
+                    });
+                  },
+                  onCardSelected: (card) {
+                    final target = selectedTarget!;
 
-                      final isGuiltyCard = card.templateId == 'culpado';
-                      final isLastCardInHand = target.hand.length == 1;
+                    final isGuiltyCard = card.templateId == 'culpado';
+                    final isLastCardInHand = target.hand.length == 1;
 
-                      if (isGuiltyCard && !isLastCardInHand) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'O Culpado só pode ser descartado se for a última carta da mão.',
-                            ),
-                          ),
-                        );
-
-                        return;
-                      }
-
-                      resolveForcedDiscardEffect(
-                        gameState: widget.gameState,
-                        targetPlayer: target,
-                        cardToDiscard: card,
-                        effectName: widget.effectName,
-                      );
-
-                      if (widget.gameState.roundFinished) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (_) => RoundResultScreen(
-                              gameState: widget.gameState,
-                            ),
-                          ),
-                              (route) => route.isFirst,
-                        );
-
-                        return;
-                      }
-
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => PassDeviceScreen(
-                            gameState: widget.gameState,
+                    if (isGuiltyCard && !isLastCardInHand) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'O Culpado só pode ser descartado se for a última carta da mão.',
                           ),
                         ),
-                            (route) => route.isFirst,
                       );
-                    },
-                  ),
+
+                      return;
+                    }
+
+                    resolveForcedDiscardEffect(
+                      gameState: widget.gameState,
+                      targetPlayer: target,
+                      cardToDiscard: card,
+                      effectName: widget.effectName,
+                    );
+
+                    if (widget.gameState.roundFinished) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RoundResultScreen(gameState: widget.gameState),
+                        ),
+                        (route) => route.isFirst,
+                      );
+
+                      return;
+                    }
+
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
+                      ),
+                      (route) => route.isFirst,
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -177,9 +172,7 @@ class _ForcedDiscardEffectScreenState extends State<ForcedDiscardEffectScreen> {
 }
 
 class _NoAvailableTargetCard extends StatelessWidget {
-  const _NoAvailableTargetCard({
-    required this.onContinue,
-  });
+  const _NoAvailableTargetCard({required this.onContinue});
 
   final VoidCallback onContinue;
 
@@ -194,9 +187,7 @@ class _NoAvailableTargetCard extends StatelessWidget {
             const Text(
               'Não há outros jogadores com cartas na mão para escolher.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -285,19 +276,12 @@ class _PassToTargetCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.phone_android,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.phone_android, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             const Text(
               'Passe o celular para',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.white70,
-              ),
+              style: TextStyle(fontSize: 20, color: Colors.white70),
             ),
             const SizedBox(height: 8),
             Text(
@@ -313,9 +297,7 @@ class _PassToTargetCard extends StatelessWidget {
             const Text(
               'Este jogador escolherá uma carta da própria mão para descartar.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -324,10 +306,7 @@ class _PassToTargetCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Escolher carta',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Escolher carta', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -338,10 +317,7 @@ class _PassToTargetCard extends StatelessWidget {
                 onPressed: onBack,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Voltar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Voltar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -383,9 +359,7 @@ class _DiscardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Escolha uma carta da própria mão para descartar.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             ...targetPlayer.hand.map((card) {
@@ -394,9 +368,7 @@ class _DiscardSelectionCard extends StatelessWidget {
                 child: ListTile(
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                   trailing: const Icon(Icons.chevron_right),

@@ -36,9 +36,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
             future: historyFuture,
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(),
-                );
+                return const Center(child: CircularProgressIndicator());
               }
 
               final entries = snapshot.data!;
@@ -57,18 +55,12 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                 children: [
                   const Text(
                     'Histórico de Partidas',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Partidas locais e online finalizadas ficarão salvas aqui.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                   const SizedBox(height: 24),
                   ...entries.map((entry) {

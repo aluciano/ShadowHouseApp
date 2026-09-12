@@ -35,6 +35,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       id: 'room_${now.microsecondsSinceEpoch}',
       code: _createRoomCode(now),
       hostPlayerId: 'player_host',
+      participantUids: const ['player_host'],
       players: [
         OnlinePlayer(
           id: 'player_host',
@@ -78,6 +79,10 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       id: baseRoom?.id ?? 'room_${now.microsecondsSinceEpoch}',
       code: roomCode.toUpperCase(),
       hostPlayerId: baseRoom?.hostPlayerId ?? 'player_host',
+      participantUids: [
+        ...(baseRoom?.participantUids ?? const ['player_host']),
+        player.id,
+      ],
       players: [
         if (baseRoom == null)
           OnlinePlayer(
@@ -124,17 +129,15 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
         return player;
       }
 
-      return player.copyWith(
-        isConnected: true,
-        lastSeenAt: DateTime.now(),
-      );
+      return player.copyWith(isConnected: true, lastSeenAt: DateTime.now());
     }).toList();
 
     _latestRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
-        systemMessage:
-            wasConnected ? room.systemMessage : '${reconnectedPlayer.name} reconectou.',
+        systemMessage: wasConnected
+            ? room.systemMessage
+            : '${reconnectedPlayer.name} reconectou.',
         systemMessageAt: wasConnected ? room.systemMessageAt : DateTime.now(),
       ),
     );
@@ -218,20 +221,24 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       );
     }).toList();
 
-    final existingPlayer = room.players.firstWhere((player) => player.id == playerId);
+    final existingPlayer = room.players.firstWhere(
+      (player) => player.id == playerId,
+    );
     final connectionChanged = existingPlayer.isConnected != isConnected;
-    final changedPlayer =
-        updatedPlayers.firstWhere((player) => player.id == playerId);
+    final changedPlayer = updatedPlayers.firstWhere(
+      (player) => player.id == playerId,
+    );
     _latestRoom = _normalizeRoom(
       room.copyWith(
         players: updatedPlayers,
         systemMessage: !connectionChanged
             ? room.systemMessage
             : isConnected
-                ? '${changedPlayer.name} reconectou.'
-                : '${changedPlayer.name} desconectou.',
-        systemMessageAt:
-            connectionChanged ? DateTime.now() : room.systemMessageAt,
+            ? '${changedPlayer.name} reconectou.'
+            : '${changedPlayer.name} desconectou.',
+        systemMessageAt: connectionChanged
+            ? DateTime.now()
+            : room.systemMessageAt,
       ),
     );
     _syncRoomIntoExistingSession(_latestRoom!);
@@ -249,10 +256,12 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       return;
     }
 
-    final updatedPlayers =
-        room.players.where((player) => player.id != playerId).toList();
-    final removedPlayer =
-        room.players.firstWhere((player) => player.id == playerId);
+    final updatedPlayers = room.players
+        .where((player) => player.id != playerId)
+        .toList();
+    final removedPlayer = room.players.firstWhere(
+      (player) => player.id == playerId,
+    );
 
     _latestRoom = _normalizeRoom(
       room.copyWith(
@@ -280,12 +289,15 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       return;
     }
 
-    final removedPlayer =
-        room.players.firstWhere((player) => player.id == removedPlayerId);
-    final actingPlayer =
-        room.players.firstWhere((player) => player.id == actingPlayerId);
-    final updatedPlayers =
-        room.players.where((player) => player.id != removedPlayerId).toList();
+    final removedPlayer = room.players.firstWhere(
+      (player) => player.id == removedPlayerId,
+    );
+    final actingPlayer = room.players.firstWhere(
+      (player) => player.id == actingPlayerId,
+    );
+    final updatedPlayers = room.players
+        .where((player) => player.id != removedPlayerId)
+        .toList();
 
     _latestRoom = _normalizeRoom(
       room.copyWith(
@@ -320,8 +332,9 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     }
 
     var hostPlayerId = room.hostPlayerId;
-    final hostStillExists =
-        room.players.any((player) => player.id == hostPlayerId);
+    final hostStillExists = room.players.any(
+      (player) => player.id == hostPlayerId,
+    );
     final currentHost = hostStillExists
         ? room.players.firstWhere((player) => player.id == hostPlayerId)
         : null;
@@ -338,7 +351,8 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       return player.copyWith(isHost: player.id == hostPlayerId);
     }).toList();
 
-    final currentPlayerId = room.currentPlayerId != null &&
+    final currentPlayerId =
+        room.currentPlayerId != null &&
             players.any((player) => player.id == room.currentPlayerId)
         ? room.currentPlayerId
         : null;
@@ -346,6 +360,10 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
     return room.copyWith(
       hostPlayerId: hostPlayerId,
       players: players,
+      participantUids: players
+          .where((player) => !player.id.startsWith('placeholder_player_'))
+          .map((player) => player.id)
+          .toList(),
       currentPlayerId: currentPlayerId,
     );
   }
@@ -476,8 +494,8 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
 
     final isCollectiveSelectionEffect =
         effect.type == OnlineEffectType.share ||
-            effect.type == OnlineEffectType.rumors ||
-            effect.type == OnlineEffectType.frenzy;
+        effect.type == OnlineEffectType.rumors ||
+        effect.type == OnlineEffectType.frenzy;
 
     if (effect.resultMessage == null &&
         (effect.targetPlayerId == removedPlayerId ||

@@ -23,7 +23,8 @@ class GhostOfViscountEffectScreen extends StatefulWidget {
       _GhostOfViscountEffectScreenState();
 }
 
-class _GhostOfViscountEffectScreenState extends State<GhostOfViscountEffectScreen> {
+class _GhostOfViscountEffectScreenState
+    extends State<GhostOfViscountEffectScreen> {
   bool copiedGhostAgain = false;
 
   @override
@@ -42,12 +43,7 @@ class _GhostOfViscountEffectScreenState extends State<GhostOfViscountEffectScree
           continue;
         }
 
-        availableCards.add(
-          _GhostSourceCard(
-            owner: player,
-            card: card,
-          ),
-        );
+        availableCards.add(_GhostSourceCard(owner: player, card: card));
       }
     }
 
@@ -79,15 +75,15 @@ class _GhostOfViscountEffectScreenState extends State<GhostOfViscountEffectScree
               const SizedBox(height: 24),
               if (availableCards.isEmpty)
                 _GhostActionCard(
-                  text: 'Não há cartas elegíveis já jogadas na mesa para copiar.',
+                  text:
+                      'Não há cartas elegíveis já jogadas na mesa para copiar.',
                   buttonLabel: 'Continuar',
                   onPressed: () {
                     widget.gameState.moveToNextPlayer();
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
                       ),
                       (route) => route.isFirst,
                     );
@@ -170,10 +166,7 @@ class _GhostOfViscountEffectScreenState extends State<GhostOfViscountEffectScree
 }
 
 class _GhostSourceCard {
-  const _GhostSourceCard({
-    required this.owner,
-    required this.card,
-  });
+  const _GhostSourceCard({required this.owner, required this.card});
 
   final Player owner;
   final GameCard card;

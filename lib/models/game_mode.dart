@@ -1,5 +1,1 @@
-enum GameMode {
-  original,
-  expansionBalanced,
-  expansionFullHand,
-}
+enum GameMode { original, expansionBalanced, expansionFullHand }

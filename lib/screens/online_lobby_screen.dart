@@ -116,9 +116,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
       }
 
       isOpeningGame = false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -317,9 +317,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                     const Text(
                       'Compartilhe este código com os outros jogadores.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(color: Colors.white70),
                     ),
                     if (room.systemMessage != null) ...[
                       const SizedBox(height: 20),
@@ -388,10 +386,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                                 ),
                                 title: Text(player.name),
                                 subtitle: Text(_roleAndStatusText(player)),
-                                trailing: isHost &&
+                                trailing:
+                                    isHost &&
                                         player.id != currentPlayer.id &&
-                                        !player.id
-                                            .startsWith('placeholder_player_') &&
+                                        !player.id.startsWith(
+                                          'placeholder_player_',
+                                        ) &&
                                         !player.isConnected
                                     ? Wrap(
                                         spacing: 4,
@@ -415,7 +415,8 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                                             onPressed: () {
                                               removeDisconnectedPlayer(
                                                 room: room,
-                                                actingPlayerId: currentPlayer.id,
+                                                actingPlayerId:
+                                                    currentPlayer.id,
                                                 removedPlayerId: player.id,
                                               );
                                             },
@@ -450,7 +451,9 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                             children: [
                               SizedBox.square(
                                 dimension: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                               SizedBox(width: 12),
                               Expanded(
@@ -468,12 +471,15 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                       )
                     else if (isHost)
                       FilledButton.icon(
-                        onPressed: isStartingGame ? null : () => startGame(room),
+                        onPressed: isStartingGame
+                            ? null
+                            : () => startGame(room),
                         icon: isStartingGame
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.play_arrow),
                         label: const Padding(

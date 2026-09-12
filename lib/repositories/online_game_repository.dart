@@ -36,10 +36,7 @@ abstract class OnlineGameRepository {
     required bool isConnected,
   });
 
-  Future<void> leaveRoom({
-    required String roomId,
-    required String playerId,
-  });
+  Future<void> leaveRoom({required String roomId, required String playerId});
 
   Future<void> removePlayer({
     required String roomId,

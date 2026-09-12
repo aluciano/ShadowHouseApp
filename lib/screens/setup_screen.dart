@@ -28,7 +28,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
     playerNameControllers = List.generate(
       playerCount,
-          (index) => TextEditingController(text: 'Jogador ${index + 1}'),
+      (index) => TextEditingController(text: 'Jogador ${index + 1}'),
     );
   }
 
@@ -71,9 +71,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
     if (playerNames.length != playerCount) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preencha o nome de todos os jogadores.'),
-        ),
+        const SnackBar(content: Text('Preencha o nome de todos os jogadores.')),
       );
 
       return;
@@ -96,11 +94,7 @@ class _SetupScreenState extends State<SetupScreen> {
     final gameState = createInitialGameState(setup);
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: gameState,
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => PassDeviceScreen(gameState: gameState)),
     );
   }
 
@@ -125,26 +119,17 @@ class _SetupScreenState extends State<SetupScreen> {
               children: [
                 const Text(
                   'Configuração da Partida',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'Modo passa o celular',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
                 const SizedBox(height: 32),
                 const Text(
                   'Modo de jogo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 ...GameMode.values.map((mode) {
@@ -165,10 +150,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 const SizedBox(height: 24),
                 const Text(
                   'Quantidade de jogadores',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -196,10 +178,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 const SizedBox(height: 32),
                 const Text(
                   'Jogadores',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 ...List.generate(playerCount, (index) {

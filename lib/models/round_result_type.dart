@@ -1,6 +1,1 @@
-enum RoundResultType {
-  guiltyWins,
-  detectiveWins,
-  totoWins,
-  handcuffsWins,
-}
+enum RoundResultType { guiltyWins, detectiveWins, totoWins, handcuffsWins }

@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function hasParticipantUid(data) {
+      return signedIn() &&
+        data.participantUids is list &&
+        uid() in data.participantUids;
+    }
+
+    function roomData(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function isRoomParticipant(roomId) {
+      return hasParticipantUid(roomData(roomId));
+    }
+
+    match /rooms/{roomId} {
+      allow create: if signedIn() &&
+        request.resource.data.participantUids == [uid()] &&
+        request.resource.data.hostPlayerId == uid();
+
+      allow get: if signedIn();
+
+      allow list: if false;
+
+      allow update: if
+        hasParticipantUid(resource.data) ||
+        (
+          signedIn() &&
+          resource.data.status == 'waiting' &&
+          request.resource.data.status == 'waiting' &&
+          hasParticipantUid(request.resource.data)
+        );
+
+      allow delete: if hasParticipantUid(resource.data);
+
+      match /sessions/{sessionId} {
+        allow read, create, update: if isRoomParticipant(roomId);
+        allow delete: if isRoomParticipant(roomId);
+      }
+    }
+
+    match /matches/{matchId} {
+      allow create: if hasParticipantUid(request.resource.data);
+      allow read: if hasParticipantUid(resource.data);
+      allow update: if hasParticipantUid(resource.data) &&
+        hasParticipantUid(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

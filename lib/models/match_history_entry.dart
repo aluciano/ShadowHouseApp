@@ -11,6 +11,7 @@ class MatchHistoryEntry {
     required this.playerNames,
     required this.winnerNames,
     required this.roundsPlayed,
+    this.participantUids = const [],
     this.roomCode,
   });
 
@@ -22,6 +23,7 @@ class MatchHistoryEntry {
   final List<String> playerNames;
   final List<String> winnerNames;
   final int roundsPlayed;
+  final List<String> participantUids;
   final String? roomCode;
 
   Duration get totalDuration => finishedAt.difference(startedAt);

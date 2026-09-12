@@ -23,8 +23,9 @@ GameState createInitialGameState(GameSetup setup) {
 
   final selectedCards = <GameCard>[];
 
-  final mandatoryCards =
-  OfficialSetupRules.mandatoryCardsForPlayerCount(playerCount);
+  final mandatoryCards = OfficialSetupRules.mandatoryCardsForPlayerCount(
+    playerCount,
+  );
 
   for (final entry in mandatoryCards.entries) {
     final templateId = entry.key;
@@ -32,7 +33,7 @@ GameState createInitialGameState(GameSetup setup) {
 
     for (int i = 0; i < quantity; i++) {
       final cardIndex = pool.indexWhere(
-            (card) => card.templateId == templateId,
+        (card) => card.templateId == templateId,
       );
 
       if (cardIndex == -1) {
@@ -84,9 +85,8 @@ GameState createInitialGameState(GameSetup setup) {
   }
 
   final firstPlayerIndex = players.indexWhere(
-        (player) => player.hand.any(
-          (card) => card.templateId == 'primeiro_na_cena',
-    ),
+    (player) =>
+        player.hand.any((card) => card.templateId == 'primeiro_na_cena'),
   );
 
   return GameState(
@@ -108,10 +108,7 @@ GameState createNextRoundGameState(GameState previousState) {
   return nextState;
 }
 
-void playCard({
-  required GameState gameState,
-  required GameCard card,
-}) {
+void playCard({required GameState gameState, required GameCard card}) {
   _applyPlayedCard(
     gameState: gameState,
     card: card,
@@ -314,7 +311,7 @@ void _applyPlayedCard({
         gameState: gameState,
         guiltyPlayer: currentPlayer,
         reason:
-        '${currentPlayer.name} revelou o Culpado como última carta, mas estava com algemas.',
+            '${currentPlayer.name} revelou o Culpado como última carta, mas estava com algemas.',
       );
 
       return;
@@ -342,9 +339,7 @@ void resolveForcedDiscardEffect({
   final guiltyWasDiscarded = cardToDiscard.templateId == 'culpado';
 
   targetPlayer.hand.removeWhere((card) => card.id == cardToDiscard.id);
-  targetPlayer.playedCards.add(
-    cardToDiscard.copyWith(wasDiscarded: true),
-  );
+  targetPlayer.playedCards.add(cardToDiscard.copyWith(wasDiscarded: true));
 
   if (guiltyWasDiscarded && wasLastCardInHand) {
     if (targetPlayer.hasHandcuffs) {
@@ -352,7 +347,7 @@ void resolveForcedDiscardEffect({
         gameState: gameState,
         guiltyPlayer: targetPlayer,
         reason:
-        '${targetPlayer.name} descartou o Culpado como última carta pelo efeito de $effectName, mas estava com algemas.',
+            '${targetPlayer.name} descartou o Culpado como última carta pelo efeito de $effectName, mas estava com algemas.',
       );
 
       return;
@@ -362,7 +357,7 @@ void resolveForcedDiscardEffect({
       gameState: gameState,
       guiltyPlayer: targetPlayer,
       reason:
-      '${targetPlayer.name} descartou o Culpado como última carta da mão pelo efeito de $effectName.',
+          '${targetPlayer.name} descartou o Culpado como última carta da mão pelo efeito de $effectName.',
     );
 
     return;
@@ -412,11 +407,11 @@ String resolveDetectiveEffect({
   required Player targetPlayer,
 }) {
   final targetHasGuilty = targetPlayer.hand.any(
-        (card) => card.templateId == 'culpado',
+    (card) => card.templateId == 'culpado',
   );
 
   final targetHasAlibi = targetPlayer.hand.any(
-        (card) => card.templateId == 'alibi',
+    (card) => card.templateId == 'alibi',
   );
 
   if (targetHasGuilty && !targetHasAlibi) {
@@ -425,7 +420,7 @@ String resolveDetectiveEffect({
         gameState: gameState,
         guiltyPlayer: targetPlayer,
         reason:
-        '${detectivePlayer.name} revelou que ${targetPlayer.name} era o Culpado, mas ele estava com algemas.',
+            '${detectivePlayer.name} revelou que ${targetPlayer.name} era o Culpado, mas ele estava com algemas.',
       );
 
       return '${targetPlayer.name} era o Culpado e estava com algemas!';
@@ -481,15 +476,17 @@ void finishRoundWithDetectiveWin({
     player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
-  final scoringSummary = gameState.players.map((player) {
-    final points = roundPointsByPlayerId[player.id] ?? 0;
+  final scoringSummary = gameState.players
+      .map((player) {
+        final points = roundPointsByPlayerId[player.id] ?? 0;
 
-    if (points == 0) {
-      return '${player.name}: 0 pontos';
-    }
+        if (points == 0) {
+          return '${player.name}: 0 pontos';
+        }
 
-    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
-  }).join('\n');
+        return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+      })
+      .join('\n');
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
@@ -517,7 +514,7 @@ void resolveTotoEffect({
         gameState: gameState,
         guiltyPlayer: targetPlayer,
         reason:
-        '${totoPlayer.name} revelou o Culpado com Totó, mas ${targetPlayer.name} estava com algemas.',
+            '${totoPlayer.name} revelou o Culpado com Totó, mas ${targetPlayer.name} estava com algemas.',
       );
 
       return;
@@ -571,15 +568,17 @@ void finishRoundWithTotoWin({
     player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
-  final scoringSummary = gameState.players.map((player) {
-    final points = roundPointsByPlayerId[player.id] ?? 0;
+  final scoringSummary = gameState.players
+      .map((player) {
+        final points = roundPointsByPlayerId[player.id] ?? 0;
 
-    if (points == 0) {
-      return '${player.name}: 0 pontos';
-    }
+        if (points == 0) {
+          return '${player.name}: 0 pontos';
+        }
 
-    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
-  }).join('\n');
+        return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+      })
+      .join('\n');
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
@@ -635,15 +634,17 @@ void finishRoundWithHandcuffsWin({
     player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
-  final scoringSummary = gameState.players.map((player) {
-    final points = roundPointsByPlayerId[player.id] ?? 0;
+  final scoringSummary = gameState.players
+      .map((player) {
+        final points = roundPointsByPlayerId[player.id] ?? 0;
 
-    if (points == 0) {
-      return '${player.name}: 0 pontos';
-    }
+        if (points == 0) {
+          return '${player.name}: 0 pontos';
+        }
 
-    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
-  }).join('\n');
+        return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+      })
+      .join('\n');
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
@@ -670,15 +671,17 @@ void _finalizeRoundScoring({
     player.score += roundPointsByPlayerId[player.id] ?? 0;
   }
 
-  final scoringSummary = gameState.players.map((player) {
-    final points = roundPointsByPlayerId[player.id] ?? 0;
+  final scoringSummary = gameState.players
+      .map((player) {
+        final points = roundPointsByPlayerId[player.id] ?? 0;
 
-    if (points == 0) {
-      return '${player.name}: 0 pontos';
-    }
+        if (points == 0) {
+          return '${player.name}: 0 pontos';
+        }
 
-    return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
-  }).join('\n');
+        return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
+      })
+      .join('\n');
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
@@ -718,15 +721,11 @@ void _applySecretOathScoringImmediate({
 
 Player findGuiltyPlayer(GameState gameState) {
   return gameState.players.firstWhere(
-        (player) => player.hand.any(
-          (card) => card.templateId == 'culpado',
-    ),
+    (player) => player.hand.any((card) => card.templateId == 'culpado'),
   );
 }
 
-void resolveFamilyBabyEffect({
-  required GameState gameState,
-}) {
+void resolveFamilyBabyEffect({required GameState gameState}) {
   gameState.moveToNextPlayer();
 }
 
@@ -736,9 +735,7 @@ bool playerHandHasGuiltyOrAccomplice(Player player) {
   });
 }
 
-void resolveWitnessWithoutExchange({
-  required GameState gameState,
-}) {
+void resolveWitnessWithoutExchange({required GameState gameState}) {
   gameState.moveToNextPlayer();
 }
 
@@ -792,7 +789,7 @@ Map<String, int> resolveCircularCardPassEffect({
     final selectedCard = entry.value;
 
     final player = gameState.players.firstWhere(
-          (player) => player.id == playerId,
+      (player) => player.id == playerId,
     );
 
     player.hand.removeWhere((card) => card.id == selectedCard.id);
@@ -804,13 +801,13 @@ Map<String, int> resolveCircularCardPassEffect({
     final card = entry.value;
 
     final sourceIndex = gameState.players.indexWhere(
-          (player) => player.id == sourcePlayerId,
+      (player) => player.id == sourcePlayerId,
     );
 
     final targetIndex = passToLeft
         ? (sourceIndex + 1) % gameState.players.length
         : (sourceIndex - 1 + gameState.players.length) %
-        gameState.players.length;
+              gameState.players.length;
 
     final targetPlayer = gameState.players[targetIndex];
 
@@ -848,17 +845,15 @@ Map<String, int> resolveRumorsEffect({
 
   for (final selection in selections) {
     final sourcePlayer = gameState.players.firstWhere(
-          (player) => player.id == selection.sourcePlayerId,
+      (player) => player.id == selection.sourcePlayerId,
     );
 
-    sourcePlayer.hand.removeWhere(
-          (card) => card.id == selection.card.id,
-    );
+    sourcePlayer.hand.removeWhere((card) => card.id == selection.card.id);
   }
 
   for (final selection in selections) {
     final receiverPlayer = gameState.players.firstWhere(
-          (player) => player.id == selection.receiverPlayerId,
+      (player) => player.id == selection.receiverPlayerId,
     );
 
     receiverPlayer.hand.add(selection.card);
@@ -872,9 +867,7 @@ Map<String, int> resolveRumorsEffect({
   return receivedCardsCountByPlayerId;
 }
 
-List<GameCard> previewFrenzyCards({
-  required Iterable<GameCard> cards,
-}) {
+List<GameCard> previewFrenzyCards({required Iterable<GameCard> cards}) {
   final random = Random();
   final shuffledCards = List<GameCard>.from(cards);
 
@@ -908,9 +901,7 @@ void schedulePianoEffect({
   gameState.moveToNextPlayer();
 }
 
-void clearScheduledPianoEffect({
-  required GameState gameState,
-}) {
+void clearScheduledPianoEffect({required GameState gameState}) {
   gameState.pianoControllerPlayerId = null;
   gameState.pianoTargetPlayerId = null;
 }
@@ -925,15 +916,15 @@ class PianoForcedPlayResult {
   final GameCard? revealedGuiltyCard;
 }
 
-PianoForcedPlayResult resolvePianoForcedPlay({
-  required GameState gameState,
-}) {
+PianoForcedPlayResult resolvePianoForcedPlay({required GameState gameState}) {
   final targetPlayer = gameState.currentPlayer;
   final random = Random();
   final handCards = List<GameCard>.from(targetPlayer.hand);
 
   if (handCards.isEmpty) {
-    throw StateError('O jogador alvo do Piano Desafinado não tem cartas na mão.');
+    throw StateError(
+      'O jogador alvo do Piano Desafinado não tem cartas na mão.',
+    );
   }
 
   GameCard? guiltyCard;
@@ -963,10 +954,7 @@ PianoForcedPlayResult resolvePianoForcedPlay({
   }
 
   clearScheduledPianoEffect(gameState: gameState);
-  playCard(
-    gameState: gameState,
-    card: playedCard,
-  );
+  playCard(gameState: gameState, card: playedCard);
 
   return PianoForcedPlayResult(
     playedCard: playedCard,
@@ -1032,14 +1020,12 @@ List<GameCard> frenzyContributionCards({
 
   for (final playerId in participantPlayerIds) {
     final player = gameState.players.firstWhere((item) => item.id == playerId);
-    final sealedCards = player.playedCards.where((card) => card.isFaceDown).toList();
+    final sealedCards = player.playedCards
+        .where((card) => card.isFaceDown)
+        .toList();
 
     if (sealedCards.isNotEmpty) {
-      cards.addAll(
-        sealedCards.map(
-          (card) => card.copyWith(isFaceDown: false),
-        ),
-      );
+      cards.addAll(sealedCards.map((card) => card.copyWith(isFaceDown: false)));
       continue;
     }
 
@@ -1080,10 +1066,10 @@ FrenzyResolution resolveFrenzyEffect({
   }
 
   for (final playerId in participantPlayerIds) {
-    final player = gameState.players.firstWhere(
-      (item) => item.id == playerId,
-    );
-    final sealedCards = player.playedCards.where((card) => card.isFaceDown).toList();
+    final player = gameState.players.firstWhere((item) => item.id == playerId);
+    final sealedCards = player.playedCards
+        .where((card) => card.isFaceDown)
+        .toList();
 
     if (sealedCards.isNotEmpty) {
       player.playedCards.removeWhere((card) => card.isFaceDown);
@@ -1110,9 +1096,7 @@ FrenzyResolution resolveFrenzyEffect({
   var cardIndex = 0;
 
   for (final playerId in participantPlayerIds) {
-    final player = gameState.players.firstWhere(
-      (item) => item.id == playerId,
-    );
+    final player = gameState.players.firstWhere((item) => item.id == playerId);
     final contributionCount = contributionCountByPlayerId[player.id] ?? 0;
     final receivedNames = <String>[];
 
@@ -1138,9 +1122,7 @@ FrenzyResolution resolveFrenzyEffect({
   );
 }
 
-void resolveBrokenMaskEffect({
-  required GameState gameState,
-}) {
+void resolveBrokenMaskEffect({required GameState gameState}) {
   gameState.moveToNextPlayer();
 }
 
@@ -1158,18 +1140,14 @@ bool resolveUnfinishedBusinessEffect({
   return false;
 }
 
-List<String> resolveLullabyEffect({
-  required GameState gameState,
-}) {
+List<String> resolveLullabyEffect({required GameState gameState}) {
   final hints = <String>[];
 
   for (final player in gameState.players) {
     final hasDetective = player.hand.any(
       (card) => card.templateId == 'detetive',
     );
-    final hasToto = player.hand.any(
-      (card) => card.templateId == 'toto',
-    );
+    final hasToto = player.hand.any((card) => card.templateId == 'toto');
 
     if (hasDetective && hasToto) {
       hints.add('${player.name} está com Detetive e Totó.');
@@ -1183,9 +1161,7 @@ List<String> resolveLullabyEffect({
   return hints;
 }
 
-void finishLullabyEffect({
-  required GameState gameState,
-}) {
+void finishLullabyEffect({required GameState gameState}) {
   gameState.moveToNextPlayer();
 }
 
@@ -1194,12 +1170,11 @@ GameCard sealRandomCardFromHand({
   required Player targetPlayer,
 }) {
   final random = Random();
-  final selectedCard = targetPlayer.hand[random.nextInt(targetPlayer.hand.length)];
+  final selectedCard =
+      targetPlayer.hand[random.nextInt(targetPlayer.hand.length)];
 
   targetPlayer.hand.removeWhere((card) => card.id == selectedCard.id);
-  targetPlayer.playedCards.add(
-    selectedCard.copyWith(isFaceDown: true),
-  );
+  targetPlayer.playedCards.add(selectedCard.copyWith(isFaceDown: true));
 
   gameState.moveToNextPlayer();
   return selectedCard;

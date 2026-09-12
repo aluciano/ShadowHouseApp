@@ -24,10 +24,7 @@ class GameCard {
   final bool wasDiscarded;
   final bool isFaceDown;
 
-  GameCard copyWith({
-    bool? wasDiscarded,
-    bool? isFaceDown,
-  }) {
+  GameCard copyWith({bool? wasDiscarded, bool? isFaceDown}) {
     return GameCard(
       id: id,
       templateId: templateId,

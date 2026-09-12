@@ -8,10 +8,7 @@ import 'played_card_effect_router.dart';
 import 'table_screen.dart';
 
 class HandScreen extends StatelessWidget {
-  const HandScreen({
-    super.key,
-    required this.gameState,
-  });
+  const HandScreen({super.key, required this.gameState});
 
   final GameState gameState;
 
@@ -44,18 +41,14 @@ class HandScreen extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(
                 'Escolha uma carta para jogar.',
-                style: TextStyle(
-                  color: Colors.white70,
-                ),
+                style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => TableScreen(
-                        gameState: gameState,
-                      ),
+                      builder: (_) => TableScreen(gameState: gameState),
                     ),
                   );
                 },
@@ -99,9 +92,12 @@ class HandScreen extends StatelessWidget {
 
                         final isGuiltyCard = card.templateId == 'culpado';
                         final isLastCardInHand = currentPlayer.hand.length == 1;
-                        final hasSealedCards = playerHasSealedCards(currentPlayer);
+                        final hasSealedCards = playerHasSealedCards(
+                          currentPlayer,
+                        );
 
-                        if (isGuiltyCard && (!isLastCardInHand || hasSealedCards)) {
+                        if (isGuiltyCard &&
+                            (!isLastCardInHand || hasSealedCards)) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -162,10 +158,7 @@ class HandScreen extends StatelessWidget {
 
                         final actingPlayerId = gameState.currentPlayer.id;
 
-                        playCard(
-                          gameState: gameState,
-                          card: card,
-                        );
+                        playCard(gameState: gameState, card: card);
 
                         if (!context.mounted) {
                           return;

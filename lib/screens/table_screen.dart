@@ -93,9 +93,7 @@ class TableScreen extends StatelessWidget {
                 showHands
                     ? 'Confira as cartas jogadas à frente e as cartas que ainda estavam na mão ao final da rodada.'
                     : 'Veja as cartas já jogadas à frente de cada jogador.',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 16),
               Text(
@@ -171,9 +169,7 @@ class TableScreen extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              isCurrentPlayer
-                                  ? Icons.play_arrow
-                                  : Icons.person,
+                              isCurrentPlayer ? Icons.play_arrow : Icons.person,
                               color: isCurrentPlayer
                                   ? const Color(0xFFE7C76F)
                                   : Colors.white70,
@@ -193,21 +189,23 @@ class TableScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   '${player.hand.length} carta${player.hand.length == 1 ? '' : 's'} na mão',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                  ),
+                                  style: const TextStyle(color: Colors.white70),
                                 ),
                                 Builder(
                                   builder: (context) {
-                                    final roundPoints = gameState.roundResult
-                                        ?.roundPointsByPlayerId[player.id] ??
+                                    final roundPoints =
+                                        gameState
+                                            .roundResult
+                                            ?.roundPointsByPlayerId[player
+                                            .id] ??
                                         0;
 
                                     final previousScore =
                                         player.score - roundPoints;
 
                                     final scoreText =
-                                    showHands && gameState.roundResult != null
+                                        showHands &&
+                                            gameState.roundResult != null
                                         ? '$previousScore + $roundPoints = ${player.score} ponto${player.score == 1 ? '' : 's'}'
                                         : '${player.score} ponto${player.score == 1 ? '' : 's'}';
 
@@ -338,9 +336,7 @@ class TableScreen extends StatelessWidget {
                                   ),
                                   label: Text(card.name),
                                   backgroundColor: const Color(0xFF2B2B35),
-                                  side: const BorderSide(
-                                    color: Colors.white38,
-                                  ),
+                                  side: const BorderSide(color: Colors.white38),
                                 );
                               }).toList(),
                             ),

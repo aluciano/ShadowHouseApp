@@ -98,8 +98,9 @@ class _SealedCardEffectScreenState extends State<SealedCardEffectScreen> {
                                 });
                               },
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 child: Text(
                                   '${target.name} — ${target.hand.length} carta${target.hand.length == 1 ? '' : 's'} na mão',
                                 ),
@@ -115,7 +116,7 @@ class _SealedCardEffectScreenState extends State<SealedCardEffectScreen> {
                 _SealedActionCard(
                   text: widget.gameState.roundFinished
                       ? widget.gameState.roundResult?.reason ??
-                          '${selectedTarget!.name} teve uma carta selada.'
+                            '${selectedTarget!.name} teve uma carta selada.'
                       : '${selectedTarget!.name} teve uma carta da mão colocada virada para baixo à frente dele.',
                   buttonLabel: 'Continuar',
                   onPressed: () {

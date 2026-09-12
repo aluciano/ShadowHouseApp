@@ -6,10 +6,7 @@ import '../widgets/shadow_background.dart';
 import 'played_card_effect_router.dart';
 
 class PianoDesafinadoForcedScreen extends StatefulWidget {
-  const PianoDesafinadoForcedScreen({
-    super.key,
-    required this.gameState,
-  });
+  const PianoDesafinadoForcedScreen({super.key, required this.gameState});
 
   final GameState gameState;
 
@@ -117,19 +114,12 @@ class _PianoPrivacyCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.queue_music,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.queue_music, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               'Passe o dispositivo para $controllerName.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
@@ -174,11 +164,7 @@ class _PianoExecutionCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.music_note,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.music_note, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               '$controllerName vai embaralhar a mão de $targetName sem olhar e jogar uma carta aleatória.',
@@ -224,11 +210,7 @@ class _PianoResultCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.library_music,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.library_music, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               '$controllerName jogou uma carta aleatória por $targetName.',

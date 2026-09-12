@@ -27,7 +27,8 @@ class TransientSystemMessageCard extends StatefulWidget {
       _TransientSystemMessageCardState();
 }
 
-class _TransientSystemMessageCardState extends State<TransientSystemMessageCard> {
+class _TransientSystemMessageCardState
+    extends State<TransientSystemMessageCard> {
   Timer? _hideTimer;
   bool _visible = true;
 

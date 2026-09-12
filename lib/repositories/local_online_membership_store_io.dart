@@ -7,7 +7,8 @@ import 'local_online_membership_store_base.dart';
 class _FileLocalOnlineMembershipStore implements LocalOnlineMembershipStore {
   static const _fileName = 'shadow_house_online_membership.json';
 
-  File get _file => File('${Directory.systemTemp.path}${Platform.pathSeparator}$_fileName');
+  File get _file =>
+      File('${Directory.systemTemp.path}${Platform.pathSeparator}$_fileName');
 
   @override
   Future<void> clear() async {

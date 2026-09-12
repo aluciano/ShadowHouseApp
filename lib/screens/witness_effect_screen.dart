@@ -8,11 +8,7 @@ import '../widgets/shadow_background.dart';
 import 'card_exchange_effect_screen.dart';
 import 'pass_device_screen.dart';
 
-enum WitnessStep {
-  selectTarget,
-  privacyBeforeReveal,
-  inspectTargetHand,
-}
+enum WitnessStep { selectTarget, privacyBeforeReveal, inspectTargetHand }
 
 class WitnessEffectScreen extends StatefulWidget {
   const WitnessEffectScreen({
@@ -36,7 +32,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final witnessPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final availableTargets = widget.gameState.players.where((player) {
@@ -70,9 +66,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
                 const SizedBox(height: 8),
                 Text(
                   '${witnessPlayer.name} deve escolher outro jogador para olhar a mão em segredo.',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                  ),
+                  style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 24),
                 _buildCurrentStep(
@@ -99,12 +93,10 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
           return _MessageCard(
             title: 'Nenhum alvo disponível',
             message:
-            'Não há outros jogadores com cartas na mão para investigar.',
+                'Não há outros jogadores com cartas na mão para investigar.',
             buttonText: 'Continuar',
             onPressed: () {
-              resolveWitnessWithoutExchange(
-                gameState: widget.gameState,
-              );
+              resolveWitnessWithoutExchange(gameState: widget.gameState);
 
               _goToNextPlayer(context);
             },
@@ -125,7 +117,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
         return _PrivacyCard(
           title: 'Somente ${witnessPlayer.name} deve olhar',
           message:
-          'A Testemunha vai olhar a mão de ${selectedTarget!.name} em segredo.',
+              'A Testemunha vai olhar a mão de ${selectedTarget!.name} em segredo.',
           buttonText: 'Ver mão',
           onContinue: () {
             setState(() {
@@ -151,9 +143,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
           foundSuspiciousCard: foundSuspiciousCard,
           witnessCanExchange: witnessCanExchange,
           onContinueWithoutExchange: () {
-            resolveWitnessWithoutExchange(
-              gameState: widget.gameState,
-            );
+            resolveWitnessWithoutExchange(gameState: widget.gameState);
 
             _goToNextPlayer(context);
           },
@@ -166,7 +156,7 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
                   fixedTargetPlayerId: selectedTarget!.id,
                   effectTitle: 'Troca da Testemunha',
                   introText:
-                  'escolha uma carta da sua mão. Depois o jogador investigado escolherá uma carta da própria mão para trocar.',
+                      'escolha uma carta da sua mão. Depois o jogador investigado escolherá uma carta da própria mão para trocar.',
                 ),
               ),
             );
@@ -178,11 +168,9 @@ class _WitnessEffectScreenState extends State<WitnessEffectScreen> {
   void _goToNextPlayer(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => PassDeviceScreen(
-          gameState: widget.gameState,
-        ),
+        builder: (_) => PassDeviceScreen(gameState: widget.gameState),
       ),
-          (route) => route.isFirst,
+      (route) => route.isFirst,
     );
   }
 }
@@ -260,11 +248,7 @@ class _PrivacyCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.visibility,
-              size: 64,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.visibility, size: 64, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               title,
@@ -279,9 +263,7 @@ class _PrivacyCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -290,10 +272,7 @@ class _PrivacyCard extends StatelessWidget {
                 onPressed: onContinue,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    buttonText,
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                  child: Text(buttonText, style: const TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -304,10 +283,7 @@ class _PrivacyCard extends StatelessWidget {
                 onPressed: onBack,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Voltar',
-                    style: TextStyle(fontSize: 18),
-                  ),
+                  child: Text('Voltar', style: TextStyle(fontSize: 18)),
                 ),
               ),
             ),
@@ -355,9 +331,7 @@ class _InspectTargetHandCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Confira a mão do jogador investigado e compare com a sua mão antes de decidir se deseja trocar.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             LayoutBuilder(
@@ -403,25 +377,19 @@ class _InspectTargetHandCard extends StatelessWidget {
               const Text(
                 'Nenhum Culpado ou Cúmplice foi encontrado.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                ),
+                style: TextStyle(color: Colors.white70),
               )
             else if (!witnessCanExchange)
               Text(
                 '${witnessPlayer.name} encontrou Culpado ou Cúmplice, mas não tem cartas na mão para trocar.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               )
             else
               const Text(
                 'Culpado ou Cúmplice encontrado. Você pode trocar uma carta com esse jogador.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                ),
+                style: TextStyle(color: Colors.white70),
               ),
             const SizedBox(height: 16),
             if (foundSuspiciousCard && witnessCanExchange) ...[
@@ -481,9 +449,7 @@ class _HandPreviewPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF120818),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white12,
-        ),
+        border: Border.all(color: Colors.white12),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -526,9 +492,7 @@ class _HandPreviewPanel extends StatelessWidget {
                   ),
                   title: Text(
                     card.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(card.shortText),
                 ),
@@ -561,11 +525,7 @@ class _MessageCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
-              Icons.info_outline,
-              size: 56,
-              color: Color(0xFFE7C76F),
-            ),
+            const Icon(Icons.info_outline, size: 56, color: Color(0xFFE7C76F)),
             const SizedBox(height: 24),
             Text(
               title,
@@ -580,9 +540,7 @@ class _MessageCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -591,10 +549,7 @@ class _MessageCard extends StatelessWidget {
                 onPressed: onPressed,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    buttonText,
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                  child: Text(buttonText, style: const TextStyle(fontSize: 18)),
                 ),
               ),
             ),

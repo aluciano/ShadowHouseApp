@@ -29,7 +29,7 @@ class _TotoEffectScreenState extends State<TotoEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final totoPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final availableTargets = widget.gameState.players.where((player) {
@@ -60,9 +60,7 @@ class _TotoEffectScreenState extends State<TotoEffectScreen> {
               const SizedBox(height: 8),
               Text(
                 '${totoPlayer.name} deve escolher outro jogador e revelar uma carta da mão dele sem olhar.',
-                style: const TextStyle(
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 24),
               if (availableTargets.isEmpty)
@@ -72,11 +70,10 @@ class _TotoEffectScreenState extends State<TotoEffectScreen> {
 
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
                       ),
-                          (route) => route.isFirst,
+                      (route) => route.isFirst,
                     );
                   },
                 )
@@ -91,58 +88,56 @@ class _TotoEffectScreenState extends State<TotoEffectScreen> {
                   },
                 )
               else if (revealedCard == null)
-                  _HiddenCardSelectionCard(
-                    targetPlayer: selectedTarget!,
-                    onBack: () {
-                      setState(() {
-                        selectedTarget = null;
-                        revealedCard = null;
-                      });
-                    },
-                    onCardSelected: (card) {
-                      final target = selectedTarget!;
+                _HiddenCardSelectionCard(
+                  targetPlayer: selectedTarget!,
+                  onBack: () {
+                    setState(() {
+                      selectedTarget = null;
+                      revealedCard = null;
+                    });
+                  },
+                  onCardSelected: (card) {
+                    final target = selectedTarget!;
 
-                      resolveTotoEffect(
-                        gameState: widget.gameState,
-                        totoPlayer: totoPlayer,
-                        targetPlayer: target,
-                        revealedCard: card,
-                      );
+                    resolveTotoEffect(
+                      gameState: widget.gameState,
+                      totoPlayer: totoPlayer,
+                      targetPlayer: target,
+                      revealedCard: card,
+                    );
 
-                      setState(() {
-                        revealedCard = card;
-                      });
-                    },
-                  )
-                else
-                  _TotoRevealResultCard(
-                    targetPlayer: selectedTarget!,
-                    revealedCard: revealedCard!,
-                    roundFinished: widget.gameState.roundFinished,
-                    onContinue: () {
-                      if (widget.gameState.roundFinished) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (_) => RoundResultScreen(
-                              gameState: widget.gameState,
-                            ),
-                          ),
-                              (route) => route.isFirst,
-                        );
-
-                        return;
-                      }
-
+                    setState(() {
+                      revealedCard = card;
+                    });
+                  },
+                )
+              else
+                _TotoRevealResultCard(
+                  targetPlayer: selectedTarget!,
+                  revealedCard: revealedCard!,
+                  roundFinished: widget.gameState.roundFinished,
+                  onContinue: () {
+                    if (widget.gameState.roundFinished) {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => PassDeviceScreen(
-                            gameState: widget.gameState,
-                          ),
+                          builder: (_) =>
+                              RoundResultScreen(gameState: widget.gameState),
                         ),
-                            (route) => route.isFirst,
+                        (route) => route.isFirst,
                       );
-                    },
-                  ),
+
+                      return;
+                    }
+
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PassDeviceScreen(gameState: widget.gameState),
+                      ),
+                      (route) => route.isFirst,
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -152,9 +147,7 @@ class _TotoEffectScreenState extends State<TotoEffectScreen> {
 }
 
 class _NoAvailableTargetCard extends StatelessWidget {
-  const _NoAvailableTargetCard({
-    required this.onContinue,
-  });
+  const _NoAvailableTargetCard({required this.onContinue});
 
   final VoidCallback onContinue;
 
@@ -169,9 +162,7 @@ class _NoAvailableTargetCard extends StatelessWidget {
             const Text(
               'Não há outros jogadores com cartas na mão para escolher.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -272,9 +263,7 @@ class _HiddenCardSelectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'Escolha uma carta sem olhar para revelar.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -295,10 +284,7 @@ class _HiddenCardSelectionCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.help_outline),
                         const SizedBox(height: 8),
-                        Text(
-                          'Carta ${index + 1}',
-                          textAlign: TextAlign.center,
-                        ),
+                        Text('Carta ${index + 1}', textAlign: TextAlign.center),
                       ],
                     ),
                   ),
@@ -362,10 +348,7 @@ class _TotoRevealResultCard extends StatelessWidget {
             Text(
               revealedCard.name,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
@@ -373,9 +356,7 @@ class _TotoRevealResultCard extends StatelessWidget {
                   ? '${targetPlayer.name} estava com o Culpado!'
                   : 'A carta não era o Culpado. Ela volta para a mão de ${targetPlayer.name}.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-              ),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 32),
             SizedBox(

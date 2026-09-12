@@ -1,5 +1,1 @@
-enum OnlineRoomStatus {
-  waiting,
-  inProgress,
-  finished,
-}
+enum OnlineRoomStatus { waiting, inProgress, finished }

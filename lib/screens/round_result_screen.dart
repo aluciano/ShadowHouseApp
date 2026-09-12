@@ -10,10 +10,7 @@ import 'setup_screen.dart';
 import 'table_screen.dart';
 
 class RoundResultScreen extends StatelessWidget {
-  const RoundResultScreen({
-    super.key,
-    required this.gameState,
-  });
+  const RoundResultScreen({super.key, required this.gameState});
 
   final GameState gameState;
 
@@ -29,8 +26,8 @@ class RoundResultScreen extends StatelessWidget {
 
     final gameWinners = isGameFinished
         ? gameState.players
-        .where((player) => player.score == highestScore)
-        .toList()
+              .where((player) => player.score == highestScore)
+              .toList()
         : [];
 
     return Scaffold(
@@ -44,7 +41,9 @@ class RoundResultScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isGameFinished ? Icons.workspace_premium : Icons.emoji_events,
+                    isGameFinished
+                        ? Icons.workspace_premium
+                        : Icons.emoji_events,
                     size: 72,
                     color: const Color(0xFFE7C76F),
                   ),
@@ -112,7 +111,9 @@ class RoundResultScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   ...gameState.players.map((player) {
                     final roundPoints =
-                        gameState.roundResult?.roundPointsByPlayerId[player.id] ?? 0;
+                        gameState.roundResult?.roundPointsByPlayerId[player
+                            .id] ??
+                        0;
 
                     final previousScore = player.score - roundPoints;
 
@@ -130,7 +131,8 @@ class RoundResultScreen extends StatelessWidget {
                           color: isGameFinished && player.score == highestScore
                               ? const Color(0xFFE7C76F)
                               : Colors.white70,
-                          fontWeight: isGameFinished && player.score == highestScore
+                          fontWeight:
+                              isGameFinished && player.score == highestScore
                               ? FontWeight.bold
                               : FontWeight.normal,
                         ),
@@ -196,7 +198,7 @@ class RoundResultScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (_) => const SetupScreen(),
                             ),
-                                (route) => route.isFirst,
+                            (route) => route.isFirst,
                           );
                         },
                         child: const Padding(
@@ -213,16 +215,16 @@ class RoundResultScreen extends StatelessWidget {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () {
-                          final nextRoundState =
-                          createNextRoundGameState(gameState);
+                          final nextRoundState = createNextRoundGameState(
+                            gameState,
+                          );
 
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (_) => PassDeviceScreen(
-                                gameState: nextRoundState,
-                              ),
+                              builder: (_) =>
+                                  PassDeviceScreen(gameState: nextRoundState),
                             ),
-                                (route) => route.isFirst,
+                            (route) => route.isFirst,
                           );
                         },
                         child: const Padding(
@@ -239,9 +241,9 @@ class RoundResultScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.of(context).popUntil(
-                              (route) => route.isFirst,
-                        );
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
                       },
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),

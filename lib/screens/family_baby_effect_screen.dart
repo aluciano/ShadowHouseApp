@@ -26,7 +26,7 @@ class _FamilyBabyEffectScreenState extends State<FamilyBabyEffectScreen> {
   @override
   Widget build(BuildContext context) {
     final actingPlayer = widget.gameState.players.firstWhere(
-          (player) => player.id == widget.actingPlayerId,
+      (player) => player.id == widget.actingPlayerId,
     );
 
     final guiltyPlayer = findGuiltyPlayer(widget.gameState);
@@ -45,31 +45,28 @@ class _FamilyBabyEffectScreenState extends State<FamilyBabyEffectScreen> {
                 padding: const EdgeInsets.all(24),
                 child: guiltyRevealed
                     ? _GuiltyRevealedContent(
-                  actingPlayer: actingPlayer,
-                  guiltyPlayer: guiltyPlayer,
-                  onContinue: () {
-                    resolveFamilyBabyEffect(
-                      gameState: widget.gameState,
-                    );
+                        actingPlayer: actingPlayer,
+                        guiltyPlayer: guiltyPlayer,
+                        onContinue: () {
+                          resolveFamilyBabyEffect(gameState: widget.gameState);
 
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => PassDeviceScreen(
-                          gameState: widget.gameState,
-                        ),
-                      ),
-                          (route) => route.isFirst,
-                    );
-                  },
-                )
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  PassDeviceScreen(gameState: widget.gameState),
+                            ),
+                            (route) => route.isFirst,
+                          );
+                        },
+                      )
                     : _PrivacyContent(
-                  actingPlayer: actingPlayer,
-                  onReveal: () {
-                    setState(() {
-                      guiltyRevealed = true;
-                    });
-                  },
-                ),
+                        actingPlayer: actingPlayer,
+                        onReveal: () {
+                          setState(() {
+                            guiltyRevealed = true;
+                          });
+                        },
+                      ),
               ),
             ),
           ),
@@ -80,10 +77,7 @@ class _FamilyBabyEffectScreenState extends State<FamilyBabyEffectScreen> {
 }
 
 class _PrivacyContent extends StatelessWidget {
-  const _PrivacyContent({
-    required this.actingPlayer,
-    required this.onReveal,
-  });
+  const _PrivacyContent({required this.actingPlayer, required this.onReveal});
 
   final Player actingPlayer;
   final VoidCallback onReveal;
@@ -93,11 +87,7 @@ class _PrivacyContent extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
-          Icons.child_care,
-          size: 72,
-          color: Color(0xFFE7C76F),
-        ),
+        const Icon(Icons.child_care, size: 72, color: Color(0xFFE7C76F)),
         const SizedBox(height: 24),
         const Text(
           'O Bebê da Família',
@@ -112,18 +102,13 @@ class _PrivacyContent extends StatelessWidget {
         Text(
           'Somente ${actingPlayer.name} deve olhar esta tela.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         const Text(
           'O app vai revelar secretamente quem está com o Culpado.',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white70,
-          ),
+          style: TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 32),
         SizedBox(
@@ -132,10 +117,7 @@ class _PrivacyContent extends StatelessWidget {
             onPressed: onReveal,
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text(
-                'Revelar Culpado',
-                style: TextStyle(fontSize: 18),
-              ),
+              child: Text('Revelar Culpado', style: TextStyle(fontSize: 18)),
             ),
           ),
         ),
@@ -160,11 +142,7 @@ class _GuiltyRevealedContent extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
-          Icons.visibility,
-          size: 72,
-          color: Color(0xFFE7C76F),
-        ),
+        const Icon(Icons.visibility, size: 72, color: Color(0xFFE7C76F)),
         const SizedBox(height: 24),
         const Text(
           'Informação secreta',
@@ -179,10 +157,7 @@ class _GuiltyRevealedContent extends StatelessWidget {
         Text(
           'O Culpado está com:',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 18,
-            color: Colors.white70,
-          ),
+          style: const TextStyle(fontSize: 18, color: Colors.white70),
         ),
         const SizedBox(height: 8),
         Text(
@@ -198,9 +173,7 @@ class _GuiltyRevealedContent extends StatelessWidget {
         Text(
           '${actingPlayer.name}, guarde essa informação em segredo.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white70,
-          ),
+          style: const TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 32),
         SizedBox(
@@ -209,10 +182,7 @@ class _GuiltyRevealedContent extends StatelessWidget {
             onPressed: onContinue,
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text(
-                'Continuar',
-                style: TextStyle(fontSize: 18),
-              ),
+              child: Text('Continuar', style: TextStyle(fontSize: 18)),
             ),
           ),
         ),

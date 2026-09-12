@@ -74,17 +74,14 @@ class PianoDesafinadoSetupScreen extends StatelessWidget {
 
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (_) => PassDeviceScreen(
-                                    gameState: gameState,
-                                  ),
+                                  builder: (_) =>
+                                      PassDeviceScreen(gameState: gameState),
                                 ),
                                 (route) => route.isFirst,
                               );
                             },
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               child: Text(target.name),
                             ),
                           ),

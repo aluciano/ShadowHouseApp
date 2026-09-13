@@ -15,8 +15,8 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
   final FirebaseFirestore firestore;
   final FirebaseAuth auth;
 
-  CollectionReference<Map<String, dynamic>> get _matches {
-    return firestore.collection('matches');
+  CollectionReference<Map<String, dynamic>> _userMatches(String userId) {
+    return firestore.collection('users').doc(userId).collection('matches');
   }
 
   @override
@@ -27,19 +27,16 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
       return const [];
     }
 
-    final snapshot = await _matches
-        .where('participantUids', arrayContains: currentUserId)
+    final snapshot = await _userMatches(currentUserId)
+        .orderBy('finishedAt', descending: true)
+        .limit(30)
         .get();
 
     final entries = snapshot.docs.map((doc) {
       return matchHistoryEntryFromFirestore(id: doc.id, data: doc.data());
     }).toList();
 
-    entries.sort((first, second) {
-      return second.finishedAt.compareTo(first.finishedAt);
-    });
-
-    return _withoutDuplicatedOnlineMatches(entries).take(30).toList();
+    return _withoutDuplicatedOnlineMatches(entries);
   }
 
   @override
@@ -47,24 +44,26 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
     final currentUserId = auth.currentUser?.uid;
     final participantUids = {...entry.participantUids, ?currentUserId}.toList();
 
-    await _matches
-        .doc(entry.id)
-        .set(
-          matchHistoryEntryToFirestore(
-            MatchHistoryEntry(
-              id: entry.id,
-              playMode: entry.playMode,
-              gameMode: entry.gameMode,
-              startedAt: entry.startedAt,
-              finishedAt: entry.finishedAt,
-              playerNames: entry.playerNames,
-              winnerNames: entry.winnerNames,
-              roundsPlayed: entry.roundsPlayed,
-              participantUids: participantUids,
-              roomCode: entry.roomCode,
-            ),
-          ),
-        );
+    final entryToSave = MatchHistoryEntry(
+      id: entry.id,
+      playMode: entry.playMode,
+      gameMode: entry.gameMode,
+      startedAt: entry.startedAt,
+      finishedAt: entry.finishedAt,
+      playerNames: entry.playerNames,
+      winnerNames: entry.winnerNames,
+      roundsPlayed: entry.roundsPlayed,
+      participantUids: participantUids,
+      roomCode: entry.roomCode,
+    );
+    final data = matchHistoryEntryToFirestore(entryToSave);
+    final batch = firestore.batch();
+
+    for (final participantUid in participantUids) {
+      batch.set(_userMatches(participantUid).doc(entry.id), data);
+    }
+
+    await batch.commit();
   }
 
   List<MatchHistoryEntry> _withoutDuplicatedOnlineMatches(

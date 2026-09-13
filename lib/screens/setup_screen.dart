@@ -4,6 +4,8 @@ import '../data/game_setup_rules.dart';
 import '../engine/game_engine.dart';
 import '../models/game_mode.dart';
 import '../models/game_setup.dart';
+import '../models/app_settings.dart';
+import '../repositories/local_app_settings_store.dart';
 import '../widgets/game_mode_option_card.dart';
 import '../widgets/setup_summary_card.dart';
 import '../widgets/shadow_background.dart';
@@ -17,6 +19,7 @@ class SetupScreen extends StatefulWidget {
 }
 
 class _SetupScreenState extends State<SetupScreen> {
+  final settingsStore = createLocalAppSettingsStore();
   int playerCount = 3;
   GameMode selectedGameMode = GameMode.expansionBalanced;
 
@@ -30,6 +33,7 @@ class _SetupScreenState extends State<SetupScreen> {
       playerCount,
       (index) => TextEditingController(text: 'Jogador ${index + 1}'),
     );
+    loadSavedPlayerName();
   }
 
   @override
@@ -39,6 +43,16 @@ class _SetupScreenState extends State<SetupScreen> {
     }
 
     super.dispose();
+  }
+
+  Future<void> loadSavedPlayerName() async {
+    final settings = await settingsStore.load();
+
+    if (!mounted || settings.playerName.trim().isEmpty) {
+      return;
+    }
+
+    playerNameControllers.first.text = settings.playerName;
   }
 
   void updatePlayerCount(int newCount) {
@@ -76,6 +90,8 @@ class _SetupScreenState extends State<SetupScreen> {
 
       return;
     }
+
+    settingsStore.save(AppSettings(playerName: playerNames.first));
 
     final recommendation = GameSetupRules.recommendation(
       playerCount: playerCount,

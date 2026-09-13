@@ -196,6 +196,62 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  Future<void> returnToMenuKeepingReconnect(OnlineGameSession session) async {
+    if (isLeavingRoom) {
+      return;
+    }
+
+    final shouldReturn = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Voltar ao menu'),
+          content: const Text(
+            'Você sairá da tela da partida, mas poderá voltar para esta sala depois.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Voltar ao menu'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReturn != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      isLeavingRoom = true;
+    });
+
+    try {
+      await RepositoryRegistry.onlineGame.updatePlayerConnection(
+        roomId: session.room.id,
+        playerId: widget.currentPlayerId,
+        isConnected: false,
+      );
+    } catch (_) {
+      // A navegação não deve prender o jogador se a conexão cair no mesmo momento.
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   Player currentDevicePlayer(GameState gameState) {
     return gameState.players.firstWhere(
       (player) => player.id == widget.currentPlayerId,
@@ -3764,7 +3820,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          leaveRoom(widget.session);
+          returnToMenuKeepingReconnect(widget.session);
         }
       },
       child: Scaffold(
@@ -3773,7 +3829,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
           backgroundColor: const Color(0xFF120818),
           leading: IconButton(
             onPressed: () {
-              leaveRoom(widget.session);
+              returnToMenuKeepingReconnect(widget.session);
             },
             icon: const Icon(Icons.arrow_back),
           ),

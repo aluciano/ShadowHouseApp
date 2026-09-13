@@ -50,11 +50,19 @@ service cloud.firestore {
       }
     }
 
-    match /matches/{matchId} {
-      allow create: if hasParticipantUid(request.resource.data);
-      allow read: if hasParticipantUid(resource.data);
-      allow update: if hasParticipantUid(resource.data) &&
-        hasParticipantUid(request.resource.data);
+    function canWriteParticipantHistory(userId, data) {
+      return signedIn() &&
+        data.participantUids is list &&
+        uid() in data.participantUids &&
+        userId in data.participantUids;
+    }
+
+    match /users/{userId}/matches/{matchId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create, update: if canWriteParticipantHistory(
+        userId,
+        request.resource.data
+      );
       allow delete: if false;
     }
 

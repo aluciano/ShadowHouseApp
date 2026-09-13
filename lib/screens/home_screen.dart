@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/shadow_background.dart';
 import 'match_history_screen.dart';
 import 'online_entry_screen.dart';
+import 'settings_screen.dart';
 import 'setup_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -59,15 +60,15 @@ class HomeScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const SetupScreen(),
+                            builder: (_) => const OnlineEntryScreen(),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.phone_android),
+                      icon: const Icon(Icons.public),
                       label: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          'Partida Local',
+                          'Partida Online',
                           style: TextStyle(fontSize: 18),
                         ),
                       ),
@@ -80,15 +81,15 @@ class HomeScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const OnlineEntryScreen(),
+                            builder: (_) => const SetupScreen(),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.public),
+                      icon: const Icon(Icons.phone_android),
                       label: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          'Partida Online',
+                          'Partida Local',
                           style: TextStyle(fontSize: 18),
                         ),
                       ),
@@ -120,11 +121,9 @@ class HomeScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Configurações ainda serão implementadas.',
-                            ),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
                           ),
                         );
                       },

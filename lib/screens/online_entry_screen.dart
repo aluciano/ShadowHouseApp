@@ -5,6 +5,8 @@ import '../models/game_mode.dart';
 import '../models/saved_online_room_membership.dart';
 import '../models/online_room.dart';
 import '../models/online_room_status.dart';
+import '../models/app_settings.dart';
+import '../repositories/local_app_settings_store.dart';
 import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/game_mode_option_card.dart';
@@ -21,6 +23,7 @@ class OnlineEntryScreen extends StatefulWidget {
 
 class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   final membershipStore = createLocalOnlineMembershipStore();
+  final settingsStore = createLocalAppSettingsStore();
   final playerNameController = TextEditingController(text: 'Jogador');
   final roomCodeController = TextEditingController();
 
@@ -35,6 +38,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
+    loadSavedPlayerName();
     loadSavedRoomForReconnectPrompt();
   }
 
@@ -55,6 +59,20 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
           }
         },
       );
+
+  Future<void> loadSavedPlayerName() async {
+    final settings = await settingsStore.load();
+
+    if (!mounted) {
+      return;
+    }
+
+    playerNameController.text = settings.playerName;
+  }
+
+  Future<void> savePlayerNamePreference(String playerName) async {
+    await settingsStore.save(AppSettings(playerName: playerName));
+  }
 
   Future<void> loadSavedRoomForReconnectPrompt() async {
     if (isResumingRoom) {
@@ -252,6 +270,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
     late final OnlineRoom room;
 
     try {
+      await savePlayerNamePreference(playerName);
       room = await RepositoryRegistry.onlineGame.createRoom(
         hostName: playerName,
         gameMode: selectedGameMode,
@@ -322,6 +341,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
     late final OnlineRoom room;
 
     try {
+      await savePlayerNamePreference(playerName);
       room = await RepositoryRegistry.onlineGame.joinRoom(
         roomCode: roomCode,
         playerName: playerName,

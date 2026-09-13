@@ -35,6 +35,50 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
           child: FutureBuilder<List<MatchHistoryEntry>>(
             future: historyFuture,
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber,
+                          color: Color(0xFFE7C76F),
+                          size: 40,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Não foi possível carregar o histórico.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white60),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              historyFuture =
+                                  RepositoryRegistry.matchHistory.loadHistory();
+                            });
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }

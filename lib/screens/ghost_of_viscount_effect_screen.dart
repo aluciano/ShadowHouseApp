@@ -5,6 +5,7 @@ import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'played_card_effect_router.dart';
@@ -40,7 +41,8 @@ class _GhostOfViscountEffectScreenState
         if (card.wasDiscarded ||
             card.isFaceDown ||
             card.templateId == 'primeiro_na_cena' ||
-            card.templateId == 'culpado') {
+            card.templateId == 'culpado' ||
+            card.templateId == 'fantasma_do_visconde') {
           continue;
         }
 
@@ -119,11 +121,21 @@ class _GhostOfViscountEffectScreenState
 
                             return '${card.name} - ${source.owner.name}';
                           },
-                          onCardTap: (card) {
+                          onCardTap: (card) async {
                             if (card.templateId == 'fantasma_do_visconde') {
                               setState(() {
                                 copiedGhostAgain = true;
                               });
+                              return;
+                            }
+
+                            final shouldCopy = await showGameCardPreviewDialog(
+                              context: context,
+                              card: card,
+                              playLabel: 'Copiar e Jogar',
+                            );
+
+                            if (!context.mounted || !shouldCopy) {
                               return;
                             }
 

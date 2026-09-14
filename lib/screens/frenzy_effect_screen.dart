@@ -563,7 +563,17 @@ class _CardSelectionCard extends StatelessWidget {
             GameCardCarousel(
               cards: player.hand,
               cardWidth: 150,
-              onCardTap: onCardSelected,
+              onCardTap: (card) async {
+                final shouldSelect = await showGameCardPreviewDialog(
+                  context: context,
+                  card: card,
+                  playLabel: 'Enviar ao Frenesi',
+                );
+
+                if (shouldSelect) {
+                  onCardSelected(card);
+                }
+              },
             ),
           ],
         ),

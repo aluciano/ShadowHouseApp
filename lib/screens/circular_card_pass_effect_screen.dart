@@ -5,6 +5,7 @@ import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 
@@ -431,7 +432,17 @@ class _CardSelectionCard extends StatelessWidget {
             GameCardCarousel(
               cards: player.hand,
               cardWidth: 150,
-              onCardTap: onCardSelected,
+              onCardTap: (card) async {
+                final shouldSelect = await showGameCardPreviewDialog(
+                  context: context,
+                  card: card,
+                  playLabel: 'Compartilhar',
+                );
+
+                if (shouldSelect) {
+                  onCardSelected(card);
+                }
+              },
             ),
           ],
         ),

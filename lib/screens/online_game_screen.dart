@@ -91,8 +91,29 @@ List<GameCard> _ghostCopySourceCards(GameState gameState) {
     return !card.wasDiscarded &&
         !card.isFaceDown &&
         card.templateId != 'primeiro_na_cena' &&
-        card.templateId != 'culpado';
+        card.templateId != 'culpado' &&
+        card.templateId != 'fantasma_do_visconde';
   }).toList();
+}
+
+Future<void> _selectCardAfterPreview({
+  required BuildContext context,
+  required GameCard card,
+  required String actionLabel,
+  required ValueChanged<GameCard> onSelected,
+}) async {
+  final shouldSelect = await showGameCardPreviewDialog(
+    context: context,
+    card: card,
+    closeLabel: 'Fechar',
+    playLabel: actionLabel,
+  );
+
+  if (!shouldSelect) {
+    return;
+  }
+
+  onSelected(card);
 }
 
 class OnlineGameScreen extends StatefulWidget {
@@ -5175,7 +5196,14 @@ class _GhostCopyPendingEffectCard extends StatelessWidget {
                 cards: effect.offeredCards,
                 cardWidth: 132,
                 labelBuilder: (card) => card.name,
-                onCardTap: isResolvingEffect ? null : onSourceSelected,
+                onCardTap: isResolvingEffect
+                    ? null
+                    : (card) => _selectCardAfterPreview(
+                          context: context,
+                          card: card,
+                          actionLabel: 'Copiar e Jogar',
+                          onSelected: onSourceSelected,
+                        ),
               ),
             ],
           ],
@@ -7409,7 +7437,14 @@ class _SwapPendingEffectCard extends StatelessWidget {
                 GameCardCarousel(
                   cards: actingPlayer.hand,
                   cardWidth: 150,
-                  onCardTap: isResolvingEffect ? null : onActingCardSelected,
+                  onCardTap: isResolvingEffect
+                      ? null
+                      : (card) => _selectCardAfterPreview(
+                          context: context,
+                          card: card,
+                          actionLabel: 'Trocar',
+                          onSelected: onActingCardSelected,
+                        ),
                 ),
               ] else
                 Text(
@@ -7426,7 +7461,14 @@ class _SwapPendingEffectCard extends StatelessWidget {
                 GameCardCarousel(
                   cards: targetPlayer.hand,
                   cardWidth: 150,
-                  onCardTap: isResolvingEffect ? null : onTargetCardSelected,
+                  onCardTap: isResolvingEffect
+                      ? null
+                      : (card) => _selectCardAfterPreview(
+                          context: context,
+                          card: card,
+                          actionLabel: 'Trocar',
+                          onSelected: onTargetCardSelected,
+                        ),
                 ),
               ] else
                 Text(
@@ -7600,7 +7642,14 @@ class _SharePendingEffectCard extends StatelessWidget {
               GameCardCarousel(
                 cards: currentPlayer.hand,
                 cardWidth: 150,
-                onCardTap: isResolvingEffect ? null : onCardSelected,
+                onCardTap: isResolvingEffect
+                    ? null
+                    : (card) => _selectCardAfterPreview(
+                        context: context,
+                        card: card,
+                        actionLabel: 'Compartilhar',
+                        onSelected: onCardSelected,
+                      ),
               ),
             ] else ...[
               Text(
@@ -8016,7 +8065,14 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
                 GameCardCarousel(
                   cards: currentPlayer.hand,
                   cardWidth: 150,
-                  onCardTap: isResolvingEffect ? null : onCardSelected,
+                  onCardTap: isResolvingEffect
+                      ? null
+                      : (card) => _selectCardAfterPreview(
+                            context: context,
+                            card: card,
+                            actionLabel: 'Enviar ao Frenesi',
+                            onSelected: onCardSelected,
+                          ),
                 ),
               ],
             ] else ...[
@@ -8432,7 +8488,14 @@ class _WitnessInspectStep extends StatelessWidget {
           GameCardCarousel(
             cards: witnessPlayer.hand,
             cardWidth: 150,
-            onCardTap: isResolvingEffect ? null : onWitnessCardSelected,
+            onCardTap: isResolvingEffect
+                ? null
+                : (card) => _selectCardAfterPreview(
+                    context: context,
+                    card: card,
+                    actionLabel: 'Trocar',
+                    onSelected: onWitnessCardSelected,
+                  ),
           ),
         ],
         const SizedBox(height: 12),
@@ -8488,7 +8551,14 @@ class _WitnessTargetExchangeStep extends StatelessWidget {
         GameCardCarousel(
           cards: targetPlayer.hand,
           cardWidth: 150,
-          onCardTap: isResolvingEffect ? null : onTargetCardSelected,
+          onCardTap: isResolvingEffect
+              ? null
+              : (card) => _selectCardAfterPreview(
+                  context: context,
+                  card: card,
+                  actionLabel: 'Trocar',
+                  onSelected: onTargetCardSelected,
+                ),
         ),
       ],
     );

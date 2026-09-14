@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/game_setup_rules.dart';
 import '../models/online_game_session.dart';
@@ -197,6 +198,27 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     );
   }
 
+  Future<void> copyRoomCode(String roomCode) async {
+    await Clipboard.setData(ClipboardData(text: roomCode));
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Código da sala copiado.')),
+    );
+  }
+
+  Future<void> showRoomCodeFullscreen(String roomCode) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _RoomCodeFullscreenDialog(roomCode: roomCode);
+      },
+    );
+  }
+
   void openGame(OnlineGameSession session) {
     if (!isOpeningGame) {
       isOpeningGame = true;
@@ -318,6 +340,24 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
                       'Compartilhe este código com os outros jogadores.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => copyRoomCode(room.code),
+                          icon: const Icon(Icons.copy),
+                          label: const Text('Copiar código'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => showRoomCodeFullscreen(room.code),
+                          icon: const Icon(Icons.fullscreen),
+                          label: const Text('Tela cheia'),
+                        ),
+                      ],
                     ),
                     if (room.systemMessage != null) ...[
                       const SizedBox(height: 20),
@@ -552,5 +592,59 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
       player.isHost ? 'Anfitrião' : 'Convidado',
       player.isConnected ? 'conectado' : 'desconectado',
     ].join(' • ');
+  }
+}
+
+class _RoomCodeFullscreenDialog extends StatelessWidget {
+  const _RoomCodeFullscreenDialog({required this.roomCode});
+
+  final String roomCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: const Color(0xFF120818),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  tooltip: 'Fechar',
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SelectableText(
+                      roomCode,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFFE7C76F),
+                        fontSize: 104,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Text(
+                'Código da sala',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

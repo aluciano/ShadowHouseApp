@@ -12,6 +12,7 @@ Future<bool> showGameCardPreviewDialog({
   bool showPlayButton = true,
   bool showFaceDown = false,
   String closeLabel = 'Fechar',
+  String playLabel = 'Jogar',
 }) async {
   final shouldPlay = await showDialog<bool>(
     context: context,
@@ -22,6 +23,7 @@ Future<bool> showGameCardPreviewDialog({
         showPlayButton: showPlayButton,
         showFaceDown: showFaceDown,
         closeLabel: closeLabel,
+        playLabel: playLabel,
       );
     },
   );
@@ -37,6 +39,7 @@ class GameCardPreviewDialog extends StatelessWidget {
     required this.showPlayButton,
     required this.showFaceDown,
     required this.closeLabel,
+    required this.playLabel,
   });
 
   final GameCard card;
@@ -44,6 +47,7 @@ class GameCardPreviewDialog extends StatelessWidget {
   final bool showPlayButton;
   final bool showFaceDown;
   final String closeLabel;
+  final String playLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +102,9 @@ class GameCardPreviewDialog extends StatelessWidget {
                               }
                             : null,
                         icon: const Icon(Icons.play_arrow),
-                        label: const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Text('Jogar'),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(playLabel),
                         ),
                       ),
                     ),

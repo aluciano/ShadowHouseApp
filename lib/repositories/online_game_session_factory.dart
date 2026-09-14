@@ -113,6 +113,7 @@ GameState _useOnlinePlayerIds(
     deck: gameState.deck,
     currentPlayerIndex: gameState.currentPlayerIndex,
     initialDeckSize: gameState.initialDeckSize,
+    deckDrawGroups: gameState.deckDrawGroups,
     roundFinished: gameState.roundFinished,
     silenceOwnerPlayerId: gameState.silenceOwnerPlayerId,
     secretOathPlayerId: gameState.secretOathPlayerId,

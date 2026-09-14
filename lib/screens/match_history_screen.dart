@@ -66,8 +66,8 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                         FilledButton.icon(
                           onPressed: () {
                             setState(() {
-                              historyFuture =
-                                  RepositoryRegistry.matchHistory.loadHistory();
+                              historyFuture = RepositoryRegistry.matchHistory
+                                  .loadHistory();
                             });
                           },
                           icon: const Icon(Icons.refresh),

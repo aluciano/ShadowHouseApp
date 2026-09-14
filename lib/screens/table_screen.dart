@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../models/card_type.dart';
+import '../models/game_card.dart';
 import '../models/game_state.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 
 class TableScreen extends StatelessWidget {
@@ -15,6 +19,14 @@ class TableScreen extends StatelessWidget {
   final bool showHands;
   final String title;
 
+  static const _handcuffsCard = GameCard(
+    id: 'table_handcuffs',
+    templateId: 'algemas',
+    name: 'Algemas',
+    type: CardType.special,
+    shortText: 'O jogador com algemas não vence se revelar o Culpado.',
+  );
+
   String deckSummaryText() {
     final initialDeckSize = gameState.initialDeckSize;
     final currentDeckSize = gameState.deck.length;
@@ -24,7 +36,10 @@ class TableScreen extends StatelessWidget {
       return 'Monte de compras: $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
     }
 
-    final subtractions = List.generate(drawnCards, (_) => '1').join(' - ');
+    final drawGroups = gameState.deckDrawGroups.isEmpty
+        ? List.generate(drawnCards, (_) => 1)
+        : gameState.deckDrawGroups;
+    final subtractions = drawGroups.join(' - ');
 
     return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
   }
@@ -224,22 +239,17 @@ class TableScreen extends StatelessWidget {
                         ),
                         if (player.hasHandcuffs) ...[
                           const SizedBox(height: 8),
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.link,
-                                size: 18,
-                                color: Color(0xFFE7C76F),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Algemas',
-                                style: TextStyle(
-                                  color: Color(0xFFE7C76F),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          GameCardCarousel(
+                            cards: const [_handcuffsCard],
+                            cardWidth: 72,
+                            labelBuilder: (_) => 'Algemas',
+                            onCardTap: (_) {
+                              showGameCardPreviewDialog(
+                                context: context,
+                                card: _handcuffsCard,
+                                showPlayButton: false,
+                              );
+                            },
                           ),
                         ],
                         const SizedBox(height: 12),
@@ -260,50 +270,20 @@ class TableScreen extends StatelessWidget {
                             ),
                           )
                         else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: player.playedCards.map((card) {
-                              final wasDiscarded = card.wasDiscarded;
-                              final isFaceDown = card.isFaceDown;
-
-                              return Chip(
-                                avatar: Icon(
-                                  isFaceDown
-                                      ? Icons.lock
-                                      : wasDiscarded
-                                      ? Icons.block
-                                      : Icons.visibility,
-                                  size: 16,
-                                  color: isFaceDown
-                                      ? const Color(0xFFE7C76F)
-                                      : wasDiscarded
-                                      ? Colors.white70
-                                      : const Color(0xFFE7C76F),
-                                ),
-                                label: Text(
-                                  isFaceDown && !showHands
-                                      ? 'Carta selada'
-                                      : card.name,
-                                  style: TextStyle(
-                                    color: wasDiscarded
-                                        ? Colors.white70
-                                        : Colors.white,
-                                    decoration: wasDiscarded
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
-                                  ),
-                                ),
-                                backgroundColor: wasDiscarded
-                                    ? const Color(0xFF2B2B35)
-                                    : const Color(0xFF120818),
-                                side: BorderSide(
-                                  color: wasDiscarded
-                                      ? Colors.white38
-                                      : const Color(0xFFE7C76F),
-                                ),
+                          GameCardCarousel(
+                            cards: player.playedCards,
+                            cardWidth: 72,
+                            labelBuilder: (card) =>
+                                card.isFaceDown ? 'Carta Selada' : card.name,
+                            showFaceDownBuilder: (card) => card.isFaceDown,
+                            onCardTap: (card) {
+                              showGameCardPreviewDialog(
+                                context: context,
+                                card: card,
+                                showFaceDown: card.isFaceDown && !showHands,
+                                showPlayButton: false,
                               );
-                            }).toList(),
+                            },
                           ),
                         if (showHands) ...[
                           const SizedBox(height: 16),
@@ -324,21 +304,17 @@ class TableScreen extends StatelessWidget {
                               ),
                             )
                           else
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: player.hand.map((card) {
-                                return Chip(
-                                  avatar: const Icon(
-                                    Icons.back_hand,
-                                    size: 16,
-                                    color: Colors.white70,
-                                  ),
-                                  label: Text(card.name),
-                                  backgroundColor: const Color(0xFF2B2B35),
-                                  side: const BorderSide(color: Colors.white38),
+                            GameCardCarousel(
+                              cards: player.hand,
+                              cardWidth: 72,
+                              labelBuilder: (card) => card.name,
+                              onCardTap: (card) {
+                                showGameCardPreviewDialog(
+                                  context: context,
+                                  card: card,
+                                  showPlayButton: false,
                                 );
-                              }).toList(),
+                              },
                             ),
                         ],
                       ],

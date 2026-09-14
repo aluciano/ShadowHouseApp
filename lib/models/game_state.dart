@@ -10,6 +10,7 @@ class GameState {
     required this.deck,
     required this.currentPlayerIndex,
     required this.initialDeckSize,
+    List<int>? deckDrawGroups,
     this.roundFinished = false,
     this.roundResult,
     this.silenceOwnerPlayerId,
@@ -17,13 +18,14 @@ class GameState {
     this.secretOathPartnerPlayerId,
     this.pianoControllerPlayerId,
     this.pianoTargetPlayerId,
-  });
+  }) : deckDrawGroups = deckDrawGroups ?? [];
 
   final GameSetup setup;
   final List<Player> players;
   final List<GameCard> deck;
 
   final int initialDeckSize;
+  final List<int> deckDrawGroups;
   int currentPlayerIndex;
   bool roundFinished;
   RoundResult? roundResult;
@@ -37,12 +39,14 @@ class GameState {
 
   int get drawnCardsCount => initialDeckSize - deck.length;
 
-  void moveToNextPlayer() {
-    for (final player in players) {
-      _restoreSealedCardsIfNeeded(player);
+  void registerDeckDraw(int count) {
+    if (count > 0) {
+      deckDrawGroups.add(count);
     }
+  }
 
-    if (players.every((player) => player.hand.isEmpty)) {
+  void moveToNextPlayer() {
+    if (players.every((player) => !_canReceiveTurn(player))) {
       return;
     }
 
@@ -50,7 +54,9 @@ class GameState {
 
     do {
       nextIndex = (nextIndex + 1) % players.length;
-    } while (players[nextIndex].hand.isEmpty);
+    } while (!_canReceiveTurn(players[nextIndex]));
+
+    _restoreSealedCardsIfNeeded(players[nextIndex]);
 
     if (players[nextIndex].id == silenceOwnerPlayerId) {
       silenceOwnerPlayerId = null;
@@ -59,8 +65,19 @@ class GameState {
     currentPlayerIndex = nextIndex;
   }
 
-  void _restoreSealedCardsIfNeeded(Player player) {
+  bool _canReceiveTurn(Player player) {
     if (player.hand.isNotEmpty) {
+      return true;
+    }
+
+    return player.playedCards.any((card) => card.isFaceDown);
+  }
+
+  void _restoreSealedCardsIfNeeded(Player player) {
+    final onlyHasGuiltyInHand =
+        player.hand.length == 1 && player.hand.single.templateId == 'culpado';
+
+    if (player.hand.isNotEmpty && !onlyHasGuiltyInHand) {
       return;
     }
 

@@ -608,7 +608,4 @@ class _OnlineEntryLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
-enum _SavedRoomAction {
-  resume,
-  leave,
-}
+enum _SavedRoomAction { resume, leave }

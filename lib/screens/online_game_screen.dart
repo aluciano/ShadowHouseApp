@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../engine/game_engine.dart';
 import 'dart:math';
 
+import '../models/card_type.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/match_history_entry.dart';
@@ -14,8 +15,11 @@ import '../models/online_room.dart';
 import '../models/player.dart';
 import '../repositories/local_online_membership_store.dart';
 import '../repositories/repository_registry.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import '../widgets/transient_system_message_card.dart';
+import '../widgets/turn_status_panel.dart';
 import 'online_round_result_screen.dart';
 
 OnlineActiveProtection? _blockingProtectionForPlayer({
@@ -41,6 +45,24 @@ OnlineActiveProtection? _blockingProtectionForPlayer({
   }
 
   return null;
+}
+
+GameCard? _cardFromEffectReveal({
+  required String? id,
+  required String? name,
+  required String? templateId,
+}) {
+  if (id == null || name == null || templateId == null) {
+    return null;
+  }
+
+  return GameCard(
+    id: id,
+    templateId: templateId,
+    name: name,
+    type: CardType.special,
+    shortText: '',
+  );
 }
 
 Player _playerToRightInGameState({
@@ -259,6 +281,129 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
     );
   }
 
+  bool _canPlayCard({
+    required OnlineGameSession session,
+    required Player player,
+    required GameCard card,
+  }) {
+    final gameState = session.gameState;
+    final isFirstTurnOfRound = gameState.players.every(
+      (player) => player.playedCards.isEmpty,
+    );
+
+    if (isFirstTurnOfRound && card.templateId != 'primeiro_na_cena') {
+      return false;
+    }
+
+    final isGuiltyCard = card.templateId == 'culpado';
+    final isLastCardInHand = player.hand.length == 1;
+    final hasSealedCards = playerHasSealedCards(player);
+
+    if (isGuiltyCard && (!isLastCardInHand || hasSealedCards)) {
+      return false;
+    }
+
+    if (isDirectQuestionCardBlocked(gameState: gameState, card: card)) {
+      return false;
+    }
+
+    if (card.templateId == 'detetive') {
+      return _availableDetectiveTargets(
+        session: session,
+        detective: player,
+      ).isNotEmpty;
+    }
+
+    if (card.templateId == 'toto') {
+      return _availableTotoTargets(
+        session: session,
+        totoPlayer: player,
+      ).isNotEmpty;
+    }
+
+    return true;
+  }
+
+  List<Player> _availableDetectiveTargets({
+    required OnlineGameSession session,
+    required Player detective,
+  }) {
+    return session.gameState.players.where((player) {
+      final isDetective = player.id == detective.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+      final isProtected =
+          _blockingProtectionForPlayer(
+            session: session,
+            player: player,
+            effectType: OnlineEffectType.detective,
+          ) !=
+          null;
+
+      return !isDetective && hasCardsInHand && !isProtected;
+    }).toList();
+  }
+
+  List<Player> _availableTotoTargets({
+    required OnlineGameSession session,
+    required Player totoPlayer,
+  }) {
+    return session.gameState.players.where((player) {
+      final isTotoPlayer = player.id == totoPlayer.id;
+      final hasCardsInHand = player.hand.isNotEmpty;
+      final isProtected =
+          _blockingProtectionForPlayer(
+            session: session,
+            player: player,
+            effectType: OnlineEffectType.toto,
+          ) !=
+          null;
+
+      return !isTotoPlayer && hasCardsInHand && !isProtected;
+    }).toList();
+  }
+
+  String? _blockedTurnReason({
+    required OnlineGameSession session,
+    required Player player,
+  }) {
+    if (player.hand.isEmpty) {
+      return null;
+    }
+
+    final playableCards = player.hand.where((card) {
+      return _canPlayCard(session: session, player: player, card: card);
+    }).toList();
+
+    if (playableCards.isNotEmpty) {
+      return null;
+    }
+
+    if (player.hand.any((card) => card.templateId == 'detetive') &&
+        _availableDetectiveTargets(
+          session: session,
+          detective: player,
+        ).isEmpty) {
+      return '${player.name} não tem alvo válido para o Detetive.';
+    }
+
+    if (player.hand.any((card) => card.templateId == 'toto') &&
+        _availableTotoTargets(session: session, totoPlayer: player).isEmpty) {
+      return '${player.name} não tem alvo válido para o Totó.';
+    }
+
+    if (session.gameState.silenceOwnerPlayerId != null &&
+        player.hand.every(
+          (card) =>
+              card.templateId == 'culpado' ||
+              card.templateId == 'detetive' ||
+              card.templateId == 'toto',
+        )) {
+      return 'Silêncio na Mansão impede as perguntas diretas de ${player.name}.';
+    }
+
+    return '${player.name} não tem jogada válida neste momento.';
+  }
+
   Future<void> _saveCurrentSession(
     OnlineGameSession session, {
     bool clearExpiredProtections = true,
@@ -437,6 +582,11 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       return;
     }
 
+    if (!_canPlayCard(session: session, player: player, card: card)) {
+      showMessage('Esta carta não pode ser jogada neste momento.');
+      return;
+    }
+
     final isFirstTurnOfRound = gameState.players.every(
       (player) => player.playedCards.isEmpty,
     );
@@ -462,34 +612,6 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       showMessage(
         'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
       );
-      return;
-    }
-
-    final shouldPlay = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(card.name),
-          content: Text('${card.shortText}\n\nDeseja jogar esta carta?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: const Text('Jogar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldPlay != true) {
       return;
     }
 
@@ -551,6 +673,50 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
       }
     } catch (error) {
       showMessage('Não foi possível salvar a jogada: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSavingMove = false;
+        });
+      }
+    }
+  }
+
+  Future<void> passBlockedTurn({
+    required OnlineGameSession session,
+    required String reason,
+  }) async {
+    if (isSavingMove || session.pendingEffect != null) {
+      return;
+    }
+
+    final player = currentDevicePlayer(session.gameState);
+
+    if (player.id != session.gameState.currentPlayer.id) {
+      showMessage('Aguarde sua vez para jogar.');
+      return;
+    }
+
+    setState(() {
+      isSavingMove = true;
+    });
+
+    try {
+      session.gameState.moveToNextPlayer();
+
+      await _saveCurrentSession(
+        session.copyWith(
+          gameState: session.gameState,
+          room: session.room.copyWith(
+            currentPlayerId: session.gameState.currentPlayer.id,
+            systemMessage: '$reason A vez foi passada.',
+            systemMessageAt: DateTime.now(),
+          ),
+        ),
+        clearExpiredProtections: true,
+      );
+    } catch (error) {
+      showMessage('Não foi possível passar a vez: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -2132,6 +2298,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
           selectedCardIdsByPlayerId: selectedCardIdsByPlayerId,
           selectedCardNamesByPlayerId: selectedCardNamesByPlayerId,
           previewCardNames: previewCards.map((card) => card.name).toList(),
+          offeredCards: previewCards,
         ),
       ),
     );
@@ -3882,6 +4049,9 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                 final player = currentDevicePlayer(gameState);
                 final isCurrentPlayer = player.id == currentPlayer.id;
                 final hasPendingEffect = session.pendingEffect != null;
+                final blockedTurnReason = isCurrentPlayer && !hasPendingEffect
+                    ? _blockedTurnReason(session: session, player: player)
+                    : null;
                 final disconnectedPlayers = session.room.players.where((
                   roomPlayer,
                 ) {
@@ -4318,8 +4488,35 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                       ),
                       const SizedBox(height: 16),
                     ],
+                    TurnStatusPanel(
+                      kind: hasPendingEffect
+                          ? TurnStatusKind.resolving
+                          : isCurrentPlayer
+                          ? TurnStatusKind.active
+                          : TurnStatusKind.waiting,
+                      title: hasPendingEffect
+                          ? 'Resolvendo efeito'
+                          : isCurrentPlayer
+                          ? 'Sua vez'
+                          : 'Vez de ${currentPlayer.name}',
+                      subtitle: hasPendingEffect
+                          ? 'Acompanhe a ação pendente na mesa.'
+                          : isCurrentPlayer
+                          ? 'Toque em uma carta para jogar.'
+                          : 'Aguarde sua vez.',
+                    ),
+                    const SizedBox(height: 16),
                     Card(
                       color: const Color(0xFF221229),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: isCurrentPlayer && !hasPendingEffect
+                              ? const Color(0xFFE7C76F)
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -4337,9 +4534,10 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                             Text(
                               hasPendingEffect
                                   ? 'Aguarde a resolução do efeito.'
-                                  : isCurrentPlayer
-                                  ? 'Escolha uma carta para jogar.'
-                                  : 'Aguardando ${currentPlayer.name} jogar.',
+                                  : blockedTurnReason ??
+                                        (isCurrentPlayer
+                                            ? 'Escolha uma carta para jogar.'
+                                            : 'Aguardando ${currentPlayer.name} jogar.'),
                               style: const TextStyle(color: Colors.white70),
                             ),
                             const SizedBox(height: 12),
@@ -4349,34 +4547,51 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                                 style: TextStyle(color: Colors.white54),
                               )
                             else
-                              ...player.hand.map((card) {
-                                final canPlay =
-                                    isCurrentPlayer &&
-                                    !isSavingMove &&
-                                    !hasPendingEffect;
+                              GameCardCarousel(
+                                cards: player.hand,
+                                cardWidth: 180,
+                                onCardTap: (card) async {
+                                  final canPlay =
+                                      isCurrentPlayer &&
+                                      !isSavingMove &&
+                                      !hasPendingEffect &&
+                                      _canPlayCard(
+                                        session: session,
+                                        player: player,
+                                        card: card,
+                                      );
+                                  final shouldPlay =
+                                      await showGameCardPreviewDialog(
+                                        context: context,
+                                        card: card,
+                                        canPlay: canPlay,
+                                      );
 
-                                return Card(
-                                  color: const Color(0xFF120818),
-                                  child: ListTile(
-                                    title: Text(
-                                      card.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    subtitle: Text(card.shortText),
-                                    trailing: Icon(
-                                      canPlay ? Icons.play_arrow : Icons.lock,
-                                    ),
-                                    onTap: canPlay
-                                        ? () => playOnlineCard(
-                                            session: session,
-                                            card: card,
-                                          )
-                                        : null,
-                                  ),
-                                );
-                              }),
+                                  if (!shouldPlay) {
+                                    return;
+                                  }
+
+                                  playOnlineCard(session: session, card: card);
+                                },
+                              ),
+                            if (blockedTurnReason != null) ...[
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: isSavingMove
+                                    ? null
+                                    : () {
+                                        passBlockedTurn(
+                                          session: session,
+                                          reason: blockedTurnReason,
+                                        );
+                                      },
+                                icon: const Icon(Icons.skip_next),
+                                label: const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('Passar vez'),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -4385,6 +4600,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen>
                     _OnlineTableCard(
                       gameState: gameState,
                       currentPlayer: currentPlayer,
+                      viewerPlayer: player,
                       activeProtections: session.activeProtections,
                     ),
                   ],
@@ -4868,24 +5084,25 @@ class _ThreeDestiniesPendingEffectCard extends StatelessWidget {
                 style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 12),
-              ...effect.offeredCards.map((card) {
-                return Card(
-                  color: const Color(0xFF120818),
-                  child: ListTile(
-                    title: Text(
-                      card.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(card.shortText),
-                    trailing: const Icon(Icons.play_arrow),
-                    onTap: isResolvingEffect
-                        ? null
-                        : () {
-                            onCardSelected(card);
-                          },
-                  ),
-                );
-              }),
+              GameCardCarousel(
+                cards: effect.offeredCards,
+                cardWidth: 150,
+                onCardTap: isResolvingEffect
+                    ? null
+                    : (card) async {
+                        final shouldPlay = await showGameCardPreviewDialog(
+                          context: context,
+                          card: card,
+                          closeLabel: 'Cancelar',
+                        );
+
+                        if (!shouldPlay) {
+                          return;
+                        }
+
+                        onCardSelected(card);
+                      },
+              ),
             ],
           ],
         ),
@@ -4954,24 +5171,12 @@ class _GhostCopyPendingEffectCard extends StatelessWidget {
                 style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 12),
-              ...effect.offeredCards.map((card) {
-                return Card(
-                  color: const Color(0xFF120818),
-                  child: ListTile(
-                    title: Text(
-                      card.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(card.shortText),
-                    trailing: const Icon(Icons.copy),
-                    onTap: isResolvingEffect
-                        ? null
-                        : () {
-                            onSourceSelected(card);
-                          },
-                  ),
-                );
-              }),
+              GameCardCarousel(
+                cards: effect.offeredCards,
+                cardWidth: 132,
+                labelBuilder: (card) => card.name,
+                onCardTap: isResolvingEffect ? null : onSourceSelected,
+              ),
             ],
           ],
         ),
@@ -5495,7 +5700,9 @@ class _ButlerPendingEffectCard extends StatelessWidget {
                       icon: const Icon(Icons.person_search),
                       label: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Text(player.name),
+                        child: Text(
+                          '${player.name} (${player.hand.length} carta${player.hand.length == 1 ? '' : 's'})',
+                        ),
                       ),
                     ),
                   );
@@ -5574,6 +5781,11 @@ class _PortraitPendingEffectCard extends StatelessWidget {
             (player) => player.id == effect.targetPlayerId,
           )
         : null;
+    final revealedCard = _cardFromEffectReveal(
+      id: effect.revealedCardId,
+      name: effect.revealedCardName,
+      templateId: effect.revealedCardTemplateId,
+    );
 
     return Card(
       color: const Color(0xFF221229),
@@ -5651,20 +5863,34 @@ class _PortraitPendingEffectCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 12),
-              Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  leading: const Icon(
-                    Icons.visibility,
-                    color: Color(0xFFE7C76F),
+              if (revealedCard != null)
+                GameCardCarousel(
+                  cards: [revealedCard],
+                  cardWidth: 160,
+                  labelBuilder: (_) => 'MÃ£o de ${targetPlayer.name}',
+                  onCardTap: (card) {
+                    showGameCardPreviewDialog(
+                      context: context,
+                      card: card,
+                      showPlayButton: false,
+                    );
+                  },
+                )
+              else
+                Card(
+                  color: const Color(0xFF120818),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.visibility,
+                      color: Color(0xFFE7C76F),
+                    ),
+                    title: Text(
+                      effect.revealedCardName ?? 'Carta não identificada',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('Mão de ${targetPlayer.name}'),
                   ),
-                  title: Text(
-                    effect.revealedCardName ?? 'Carta não identificada',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('Mão de ${targetPlayer.name}'),
                 ),
-              ),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: isResolvingEffect ? null : onContinue,
@@ -6045,30 +6271,11 @@ class _BrokenMaskPendingEffectCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(targetPlayer.hand.length, (index) {
-                  final card = targetPlayer.hand[index];
-
-                  return SizedBox(
-                    width: 120,
-                    height: 96,
-                    child: OutlinedButton(
-                      onPressed: isResolvingEffect
-                          ? null
-                          : () => onCardSelected(card),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.help_outline),
-                          const SizedBox(height: 8),
-                          Text('Carta ${index + 1}'),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+              GameCardCarousel(
+                cards: targetPlayer.hand,
+                cardWidth: 150,
+                showFaceDown: true,
+                onCardTap: isResolvingEffect ? null : onCardSelected,
               ),
             ] else
               Text(
@@ -7199,24 +7406,11 @@ class _SwapPendingEffectCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 12),
-                ...actingPlayer.hand.map((card) {
-                  return Card(
-                    color: const Color(0xFF120818),
-                    child: ListTile(
-                      title: Text(
-                        card.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(card.shortText),
-                      trailing: const Icon(Icons.swap_horiz),
-                      onTap: isResolvingEffect
-                          ? null
-                          : () {
-                              onActingCardSelected(card);
-                            },
-                    ),
-                  );
-                }),
+                GameCardCarousel(
+                  cards: actingPlayer.hand,
+                  cardWidth: 150,
+                  onCardTap: isResolvingEffect ? null : onActingCardSelected,
+                ),
               ] else
                 Text(
                   'Aguardando ${actingPlayer.name} escolher a própria carta para a troca.',
@@ -7229,24 +7423,11 @@ class _SwapPendingEffectCard extends StatelessWidget {
                   style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 12),
-                ...targetPlayer.hand.map((card) {
-                  return Card(
-                    color: const Color(0xFF120818),
-                    child: ListTile(
-                      title: Text(
-                        card.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(card.shortText),
-                      trailing: const Icon(Icons.swap_horiz),
-                      onTap: isResolvingEffect
-                          ? null
-                          : () {
-                              onTargetCardSelected(card);
-                            },
-                    ),
-                  );
-                }),
+                GameCardCarousel(
+                  cards: targetPlayer.hand,
+                  cardWidth: 150,
+                  onCardTap: isResolvingEffect ? null : onTargetCardSelected,
+                ),
               ] else
                 Text(
                   'Aguardando ${targetPlayer.name} escolher a carta da troca.',
@@ -7416,24 +7597,11 @@ class _SharePendingEffectCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white60),
               ),
               const SizedBox(height: 12),
-              ...currentPlayer.hand.map((card) {
-                return Card(
-                  color: const Color(0xFF120818),
-                  child: ListTile(
-                    title: Text(
-                      card.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(card.shortText),
-                    trailing: const Icon(Icons.arrow_forward),
-                    onTap: isResolvingEffect
-                        ? null
-                        : () {
-                            onCardSelected(card);
-                          },
-                  ),
-                );
-              }),
+              GameCardCarousel(
+                cards: currentPlayer.hand,
+                cardWidth: 150,
+                onCardTap: isResolvingEffect ? null : onCardSelected,
+              ),
             ] else ...[
               Text(
                 currentPlayerAlreadySelected
@@ -7610,35 +7778,11 @@ class _RumorsPendingEffectCard extends StatelessWidget {
                 style: const TextStyle(color: Colors.white60),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(sourcePlayer.hand.length, (index) {
-                  final card = sourcePlayer.hand[index];
-
-                  return SizedBox(
-                    width: 110,
-                    height: 90,
-                    child: OutlinedButton(
-                      onPressed: isResolvingEffect
-                          ? null
-                          : () {
-                              onCardSelected(card);
-                            },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.help_outline),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Carta ${index + 1}',
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+              GameCardCarousel(
+                cards: sourcePlayer.hand,
+                cardWidth: 150,
+                showFaceDown: true,
+                onCardTap: isResolvingEffect ? null : onCardSelected,
               ),
             ] else ...[
               Text(
@@ -7828,21 +7972,18 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
                   style: TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 12),
-                ...effect.previewCardNames.map((cardName) {
-                  return Card(
-                    color: const Color(0xFF120818),
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.visibility,
-                        color: Color(0xFFE7C76F),
-                      ),
-                      title: Text(
-                        cardName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  );
-                }),
+                GameCardCarousel(
+                  cards: effect.offeredCards,
+                  cardWidth: 150,
+                  labelBuilder: (card) => card.name,
+                  onCardTap: (card) {
+                    showGameCardPreviewDialog(
+                      context: context,
+                      card: card,
+                      showPlayButton: false,
+                    );
+                  },
+                ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: isResolvingEffect ? null : onFinalize,
@@ -7872,24 +8013,11 @@ class _FrenzyPendingEffectCard extends StatelessWidget {
               ),
               if (!playerHasSealedCards(currentPlayer)) ...[
                 const SizedBox(height: 12),
-                ...currentPlayer.hand.map((card) {
-                  return Card(
-                    color: const Color(0xFF120818),
-                    child: ListTile(
-                      title: Text(
-                        card.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(card.shortText),
-                      trailing: const Icon(Icons.shuffle),
-                      onTap: isResolvingEffect
-                          ? null
-                          : () {
-                              onCardSelected(card);
-                            },
-                    ),
-                  );
-                }),
+                GameCardCarousel(
+                  cards: currentPlayer.hand,
+                  cardWidth: 150,
+                  onCardTap: isResolvingEffect ? null : onCardSelected,
+                ),
               ],
             ] else ...[
               Text(
@@ -8282,13 +8410,6 @@ class _WitnessInspectStep extends StatelessWidget {
           emptyMessage: 'Nenhuma carta na mão.',
         ),
         const SizedBox(height: 12),
-        _EffectHandPanel(
-          title: 'Sua mão',
-          cards: witnessPlayer.hand,
-          highlightSuspiciousCards: false,
-          emptyMessage: 'Você não tem cartas para trocar.',
-        ),
-        const SizedBox(height: 12),
         if (!foundSuspiciousCard)
           const Text(
             'Nenhum Culpado ou Cúmplice foi encontrado.',
@@ -8308,24 +8429,11 @@ class _WitnessInspectStep extends StatelessWidget {
             style: TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 12),
-          ...witnessPlayer.hand.map((card) {
-            return Card(
-              color: const Color(0xFF120818),
-              child: ListTile(
-                title: Text(
-                  card.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(card.shortText),
-                trailing: const Icon(Icons.swap_horiz),
-                onTap: isResolvingEffect
-                    ? null
-                    : () {
-                        onWitnessCardSelected(card);
-                      },
-              ),
-            );
-          }),
+          GameCardCarousel(
+            cards: witnessPlayer.hand,
+            cardWidth: 150,
+            onCardTap: isResolvingEffect ? null : onWitnessCardSelected,
+          ),
         ],
         const SizedBox(height: 12),
         OutlinedButton.icon(
@@ -8377,24 +8485,11 @@ class _WitnessTargetExchangeStep extends StatelessWidget {
           style: const TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 12),
-        ...targetPlayer.hand.map((card) {
-          return Card(
-            color: const Color(0xFF120818),
-            child: ListTile(
-              title: Text(
-                card.name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(card.shortText),
-              trailing: const Icon(Icons.swap_horiz),
-              onTap: isResolvingEffect
-                  ? null
-                  : () {
-                      onTargetCardSelected(card);
-                    },
-            ),
-          );
-        }),
+        GameCardCarousel(
+          cards: targetPlayer.hand,
+          cardWidth: 150,
+          onCardTap: isResolvingEffect ? null : onTargetCardSelected,
+        ),
       ],
     );
   }
@@ -8442,22 +8537,26 @@ class _EffectHandPanel extends StatelessWidget {
               ),
             )
           else
-            ...cards.map((card) {
-              final suspicious =
-                  card.templateId == 'culpado' || card.templateId == 'cumplice';
-              final highlighted = highlightSuspiciousCards && suspicious;
-
-              return ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  highlighted ? Icons.warning_amber : Icons.visibility,
-                  color: highlighted ? const Color(0xFFE7C76F) : Colors.white70,
-                ),
-                title: Text(card.name),
-                subtitle: Text(card.shortText),
-              );
-            }),
+            GameCardCarousel(
+              cards: cards,
+              cardWidth: 132,
+              labelBuilder: (card) {
+                final suspicious =
+                    card.templateId == 'culpado' ||
+                    card.templateId == 'cumplice';
+                final prefix = highlightSuspiciousCards && suspicious
+                    ? 'Atenção: '
+                    : '';
+                return '$prefix${card.name}';
+              },
+              onCardTap: (card) {
+                showGameCardPreviewDialog(
+                  context: context,
+                  card: card,
+                  showPlayButton: false,
+                );
+              },
+            ),
         ],
       ),
     );
@@ -8918,33 +9017,27 @@ class _AccompliceDiscardCards extends StatelessWidget {
           style: TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 12),
-        ...targetPlayer.hand.map((card) {
-          final isBlockedGuilty =
-              card.templateId == 'culpado' && targetPlayer.hand.length > 1;
+        GameCardCarousel(
+          cards: targetPlayer.hand,
+          cardWidth: 150,
+          labelBuilder: (card) =>
+              card.templateId == 'culpado' && targetPlayer.hand.length > 1
+              ? 'Bloqueada'
+              : card.name,
+          onCardTap: isResolvingEffect
+              ? null
+              : (card) {
+                  final isBlockedGuilty =
+                      card.templateId == 'culpado' &&
+                      targetPlayer.hand.length > 1;
 
-          return Card(
-            color: const Color(0xFF120818),
-            child: ListTile(
-              title: Text(
-                card.name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(
-                isBlockedGuilty
-                    ? 'O Culpado só pode ser descartado como última carta.'
-                    : card.shortText,
-              ),
-              trailing: Icon(
-                isBlockedGuilty ? Icons.lock : Icons.delete_outline,
-              ),
-              onTap: isBlockedGuilty || isResolvingEffect
-                  ? null
-                  : () {
-                      onCardSelected(card);
-                    },
-            ),
-          );
-        }),
+                  if (isBlockedGuilty) {
+                    return;
+                  }
+
+                  onCardSelected(card);
+                },
+        ),
       ],
     );
   }
@@ -9178,32 +9271,11 @@ class _HiddenTotoCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List.generate(targetPlayer.hand.length, (index) {
-        final card = targetPlayer.hand[index];
-
-        return SizedBox(
-          width: 120,
-          height: 96,
-          child: OutlinedButton(
-            onPressed: isResolvingEffect
-                ? null
-                : () {
-                    onCardSelected(card);
-                  },
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.help_outline),
-                const SizedBox(height: 8),
-                Text('Carta ${index + 1}', textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-        );
-      }),
+    return GameCardCarousel(
+      cards: targetPlayer.hand,
+      cardWidth: 150,
+      showFaceDown: true,
+      onCardTap: isResolvingEffect ? null : onCardSelected,
     );
   }
 }
@@ -9445,12 +9517,22 @@ class _OnlineTableCard extends StatelessWidget {
   const _OnlineTableCard({
     required this.gameState,
     required this.currentPlayer,
+    required this.viewerPlayer,
     required this.activeProtections,
   });
 
   final GameState gameState;
   final Player currentPlayer;
+  final Player viewerPlayer;
   final List<OnlineActiveProtection> activeProtections;
+
+  static const _handcuffsCard = GameCard(
+    id: 'online_table_handcuffs',
+    templateId: 'algemas',
+    name: 'Algemas',
+    type: CardType.special,
+    shortText: 'O jogador com algemas não vence se revelar o Culpado.',
+  );
 
   String deckSummaryText() {
     final initialDeckSize = gameState.initialDeckSize;
@@ -9461,7 +9543,10 @@ class _OnlineTableCard extends StatelessWidget {
       return 'Monte de compras: $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
     }
 
-    final subtractions = List.generate(drawnCards, (_) => '1').join(' - ');
+    final drawGroups = gameState.deckDrawGroups.isEmpty
+        ? List.generate(drawnCards, (_) => 1)
+        : gameState.deckDrawGroups;
+    final subtractions = drawGroups.join(' - ');
 
     return 'Monte de compras: $initialDeckSize - $subtractions = $currentDeckSize carta${currentDeckSize == 1 ? '' : 's'}';
   }
@@ -9617,18 +9702,17 @@ class _OnlineTableCard extends StatelessWidget {
                     ),
                     if (tablePlayer.hasHandcuffs) ...[
                       const SizedBox(height: 8),
-                      const Row(
-                        children: [
-                          Icon(Icons.link, size: 18, color: Color(0xFFE7C76F)),
-                          SizedBox(width: 6),
-                          Text(
-                            'Algemas',
-                            style: TextStyle(
-                              color: Color(0xFFE7C76F),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                      GameCardCarousel(
+                        cards: const [_handcuffsCard],
+                        cardWidth: 72,
+                        labelBuilder: (_) => 'Algemas',
+                        onCardTap: (_) {
+                          showGameCardPreviewDialog(
+                            context: context,
+                            card: _handcuffsCard,
+                            showPlayButton: false,
+                          );
+                        },
                       ),
                     ],
                     if (playerProtections.isNotEmpty) ...[
@@ -9700,27 +9784,22 @@ class _OnlineTableCard extends StatelessWidget {
                         ),
                       )
                     else
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: tablePlayer.playedCards.map((card) {
-                          final isFaceDown = card.isFaceDown;
-
-                          return Chip(
-                            avatar: isFaceDown
-                                ? const Icon(
-                                    Icons.lock,
-                                    size: 16,
-                                    color: Color(0xFFE7C76F),
-                                  )
-                                : null,
-                            label: Text(
-                              isFaceDown ? 'Carta selada' : card.name,
-                            ),
-                            backgroundColor: const Color(0xFF120818),
-                            side: const BorderSide(color: Color(0xFFE7C76F)),
+                      GameCardCarousel(
+                        cards: tablePlayer.playedCards,
+                        cardWidth: 72,
+                        labelBuilder: (card) =>
+                            card.isFaceDown ? 'Carta Selada' : card.name,
+                        showFaceDownBuilder: (card) => card.isFaceDown,
+                        onCardTap: (card) {
+                          showGameCardPreviewDialog(
+                            context: context,
+                            card: card,
+                            showFaceDown:
+                                card.isFaceDown &&
+                                tablePlayer.id != viewerPlayer.id,
+                            showPlayButton: false,
                           );
-                        }).toList(),
+                        },
                       ),
                   ],
                 ),

@@ -439,6 +439,7 @@ class FakeOnlineGameRepository implements OnlineGameRepository {
       deck: session.gameState.deck,
       currentPlayerIndex: currentPlayerIndex,
       initialDeckSize: session.gameState.initialDeckSize,
+      deckDrawGroups: session.gameState.deckDrawGroups,
       roundFinished: session.gameState.roundFinished,
       roundResult: session.gameState.roundResult,
     );

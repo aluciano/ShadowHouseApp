@@ -4,6 +4,7 @@ import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../widgets/game_card_carousel.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'round_result_screen.dart';
@@ -362,22 +363,11 @@ class _DiscardSelectionCard extends StatelessWidget {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
-            ...targetPlayer.hand.map((card) {
-              return Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(card.shortText),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    onCardSelected(card);
-                  },
-                ),
-              );
-            }),
+            GameCardCarousel(
+              cards: targetPlayer.hand,
+              cardWidth: 150,
+              onCardTap: onCardSelected,
+            ),
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: onBack,

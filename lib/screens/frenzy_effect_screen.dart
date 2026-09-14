@@ -4,6 +4,8 @@ import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 
@@ -357,21 +359,18 @@ class _FrenzyPreviewCard extends StatelessWidget {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 24),
-            ...previewCards.map((card) {
-              return Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  leading: const Icon(
-                    Icons.visibility,
-                    color: Color(0xFFE7C76F),
-                  ),
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              );
-            }),
+            GameCardCarousel(
+              cards: previewCards,
+              cardWidth: 150,
+              labelBuilder: (card) => card.name,
+              onCardTap: (card) {
+                showGameCardPreviewDialog(
+                  context: context,
+                  card: card,
+                  showPlayButton: false,
+                );
+              },
+            ),
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: onContinue,
@@ -561,22 +560,11 @@ class _CardSelectionCard extends StatelessWidget {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
-            ...player.hand.map((card) {
-              return Card(
-                color: const Color(0xFF120818),
-                child: ListTile(
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(card.shortText),
-                  trailing: const Icon(Icons.shuffle),
-                  onTap: () {
-                    onCardSelected(card);
-                  },
-                ),
-              );
-            }),
+            GameCardCarousel(
+              cards: player.hand,
+              cardWidth: 150,
+              onCardTap: onCardSelected,
+            ),
           ],
         ),
       ),

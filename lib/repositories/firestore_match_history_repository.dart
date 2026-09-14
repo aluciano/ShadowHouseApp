@@ -27,10 +27,9 @@ class FirestoreMatchHistoryRepository implements MatchHistoryRepository {
       return const [];
     }
 
-    final snapshot = await _userMatches(currentUserId)
-        .orderBy('finishedAt', descending: true)
-        .limit(30)
-        .get();
+    final snapshot = await _userMatches(
+      currentUserId,
+    ).orderBy('finishedAt', descending: true).limit(30).get();
 
     final entries = snapshot.docs.map((doc) {
       return matchHistoryEntryFromFirestore(id: doc.id, data: doc.data());

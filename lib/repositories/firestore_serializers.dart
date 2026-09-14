@@ -300,6 +300,7 @@ Map<String, Object?> gameStateToFirestore(GameState gameState) {
     'deck': gameState.deck.map(gameCardToFirestore).toList(),
     'currentPlayerIndex': gameState.currentPlayerIndex,
     'initialDeckSize': gameState.initialDeckSize,
+    'deckDrawGroups': gameState.deckDrawGroups,
     'roundFinished': gameState.roundFinished,
     'silenceOwnerPlayerId': gameState.silenceOwnerPlayerId,
     'secretOathPlayerId': gameState.secretOathPlayerId,
@@ -327,6 +328,9 @@ GameState gameStateFromFirestore(Map<String, dynamic> data) {
         .toList(),
     currentPlayerIndex: data['currentPlayerIndex'] as int? ?? 0,
     initialDeckSize: data['initialDeckSize'] as int? ?? 0,
+    deckDrawGroups: List<int>.from(
+      data['deckDrawGroups'] as List<dynamic>? ?? [],
+    ),
     roundFinished: data['roundFinished'] as bool? ?? false,
     silenceOwnerPlayerId: data['silenceOwnerPlayerId'] as String?,
     secretOathPlayerId: data['secretOathPlayerId'] as String?,

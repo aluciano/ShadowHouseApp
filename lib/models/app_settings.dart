@@ -1,7 +1,5 @@
 class AppSettings {
-  const AppSettings({
-    this.playerName = 'Jogador',
-  });
+  const AppSettings({this.playerName = 'Jogador'});
 
   final String playerName;
 

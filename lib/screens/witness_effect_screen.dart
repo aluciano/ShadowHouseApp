@@ -4,6 +4,8 @@ import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import 'card_exchange_effect_screen.dart';
 import 'pass_device_screen.dart';
@@ -472,32 +474,26 @@ class _HandPreviewPanel extends StatelessWidget {
               ),
             )
           else
-            ...cards.map((card) {
-              final isSuspicious =
-                  card.templateId == 'culpado' || card.templateId == 'cumplice';
-
-              final shouldHighlight = highlightSuspiciousCards && isSuspicious;
-
-              return Card(
-                color: shouldHighlight
-                    ? const Color(0xFF3A1A4A)
-                    : const Color(0xFF221229),
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(
-                    shouldHighlight ? Icons.warning_amber : Icons.visibility,
-                    color: shouldHighlight
-                        ? const Color(0xFFE7C76F)
-                        : Colors.white70,
-                  ),
-                  title: Text(
-                    card.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(card.shortText),
-                ),
-              );
-            }),
+            GameCardCarousel(
+              cards: cards,
+              cardWidth: 132,
+              labelBuilder: (card) {
+                final isSuspicious =
+                    card.templateId == 'culpado' ||
+                    card.templateId == 'cumplice';
+                final prefix = highlightSuspiciousCards && isSuspicious
+                    ? 'Atenção: '
+                    : '';
+                return '$prefix${card.name}';
+              },
+              onCardTap: (card) {
+                showGameCardPreviewDialog(
+                  context: context,
+                  card: card,
+                  showPlayButton: false,
+                );
+              },
+            ),
         ],
       ),
     );

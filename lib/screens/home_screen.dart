@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_version.dart';
 import '../widgets/shadow_background.dart';
 import 'match_history_screen.dart';
 import 'online_entry_screen.dart';
@@ -136,6 +137,12 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text(
+                    appVersionLabel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
               ),

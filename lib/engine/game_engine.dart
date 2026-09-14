@@ -467,7 +467,7 @@ void finishRoundWithDetectiveWin({
     }
   }
 
-  _applySecretOathScoringImmediate(
+  final secretOathExplanation = _applySecretOathScoringImmediate(
     gameState: gameState,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -487,14 +487,18 @@ void finishRoundWithDetectiveWin({
         return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
       })
       .join('\n');
+  final reasonWithSecretOath = _reasonWithExtra(
+    detectiveCanScore
+        ? '${detectivePlayer.name} revelou corretamente o Culpado.'
+        : '${detectivePlayer.name} revelou o Culpado, mas já era Cúmplice e não venceu a rodada.\n\nComo ${detectivePlayer.name} era Cúmplice, não recebeu pontos pela revelação.',
+    secretOathExplanation,
+  );
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
     type: RoundResultType.detectiveWins,
     winner: detectivePlayer,
-    reason: detectiveCanScore
-        ? '${detectivePlayer.name} revelou corretamente o Culpado.'
-        : '${detectivePlayer.name} revelou o Culpado, mas já era Cúmplice e não venceu a rodada.',
+    reason: reasonWithSecretOath,
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -559,7 +563,7 @@ void finishRoundWithTotoWin({
     }
   }
 
-  _applySecretOathScoringImmediate(
+  final secretOathExplanation = _applySecretOathScoringImmediate(
     gameState: gameState,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -579,14 +583,18 @@ void finishRoundWithTotoWin({
         return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
       })
       .join('\n');
+  final reasonWithSecretOath = _reasonWithExtra(
+    totoCanScore
+        ? '${totoPlayer.name} revelou o Culpado com Totó.'
+        : '${totoPlayer.name} revelou o Culpado com Totó, mas já era Cúmplice e não venceu a rodada.\n\nComo ${totoPlayer.name} era Cúmplice, não recebeu pontos pela revelação.',
+    secretOathExplanation,
+  );
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
     type: RoundResultType.totoWins,
     winner: totoPlayer,
-    reason: totoCanScore
-        ? '${totoPlayer.name} revelou o Culpado com Totó.'
-        : '${totoPlayer.name} revelou o Culpado com Totó, mas já era Cúmplice e não venceu a rodada.',
+    reason: reasonWithSecretOath,
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -625,7 +633,7 @@ void finishRoundWithHandcuffsWin({
     }
   }
 
-  _applySecretOathScoringImmediate(
+  final secretOathExplanation = _applySecretOathScoringImmediate(
     gameState: gameState,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -645,11 +653,18 @@ void finishRoundWithHandcuffsWin({
         return '${player.name}: +$points ponto${points == 1 ? '' : 's'}';
       })
       .join('\n');
+  final reasonWithHandcuffsDetails =
+      '$reason\n\n${guiltyPlayer.name}, que estava com o Culpado, perde.\n'
+      'Os Cúmplices também perdem.\n'
+      'Todos os jogadores que não são Culpado nem Cúmplices ganham 1 ponto.';
 
   gameState.roundFinished = true;
   gameState.roundResult = RoundResult(
     type: RoundResultType.handcuffsWins,
-    reason: reason,
+    reason: _reasonWithExtra(
+      reasonWithHandcuffsDetails,
+      secretOathExplanation,
+    ),
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -662,7 +677,7 @@ void _finalizeRoundScoring({
   required String reason,
   required Map<String, int> roundPointsByPlayerId,
 }) {
-  _applySecretOathScoringImmediate(
+  final secretOathExplanation = _applySecretOathScoringImmediate(
     gameState: gameState,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
@@ -687,13 +702,13 @@ void _finalizeRoundScoring({
   gameState.roundResult = RoundResult(
     type: roundResultType,
     winner: winner,
-    reason: reason,
+    reason: _reasonWithExtra(reason, secretOathExplanation),
     scoringSummary: scoringSummary,
     roundPointsByPlayerId: roundPointsByPlayerId,
   );
 }
 
-void _applySecretOathScoringImmediate({
+String? _applySecretOathScoringImmediate({
   required GameState gameState,
   required Map<String, int> roundPointsByPlayerId,
 }) {
@@ -701,8 +716,15 @@ void _applySecretOathScoringImmediate({
   final secondPlayerId = gameState.secretOathPartnerPlayerId;
 
   if (firstPlayerId == null || secondPlayerId == null) {
-    return;
+    return null;
   }
+
+  final firstPlayer = gameState.players.firstWhere(
+    (player) => player.id == firstPlayerId,
+  );
+  final secondPlayer = gameState.players.firstWhere(
+    (player) => player.id == secondPlayerId,
+  );
 
   final firstPoints = roundPointsByPlayerId[firstPlayerId] ?? 0;
   final secondPoints = roundPointsByPlayerId[secondPlayerId] ?? 0;
@@ -710,13 +732,30 @@ void _applySecretOathScoringImmediate({
   if (firstPoints > 0 && secondPoints == 0) {
     final bonus = max(0, firstPoints - 1);
     roundPointsByPlayerId[secondPlayerId] = bonus;
-    return;
+    if (bonus > 0) {
+      return 'Pelo Juramento Secreto, ${secondPlayer.name} recebeu $bonus ponto${bonus == 1 ? '' : 's'} por estar vinculado a ${firstPlayer.name}.';
+    }
+
+    return null;
   }
 
   if (secondPoints > 0 && firstPoints == 0) {
     final bonus = max(0, secondPoints - 1);
     roundPointsByPlayerId[firstPlayerId] = bonus;
+    if (bonus > 0) {
+      return 'Pelo Juramento Secreto, ${firstPlayer.name} recebeu $bonus ponto${bonus == 1 ? '' : 's'} por estar vinculado a ${secondPlayer.name}.';
+    }
   }
+
+  return null;
+}
+
+String _reasonWithExtra(String reason, String? extra) {
+  if (extra == null || extra.isEmpty) {
+    return reason;
+  }
+
+  return '$reason\n\n$extra';
 }
 
 Player findGuiltyPlayer(GameState gameState) {
@@ -981,6 +1020,7 @@ List<GameCard> drawCardsFromDeck({
 
   if (drawnCards.isNotEmpty) {
     gameState.deck.removeRange(0, drawCount);
+    gameState.registerDeckDraw(drawCount);
   }
 
   return drawnCards;

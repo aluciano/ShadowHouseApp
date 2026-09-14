@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../engine/game_engine.dart';
 import '../models/game_state.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
+import '../widgets/turn_status_panel.dart';
 import 'piano_desafinado_forced_screen.dart';
 import 'played_card_effect_router.dart';
 import 'table_screen.dart';
@@ -44,6 +47,12 @@ class HandScreen extends StatelessWidget {
                 style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 16),
+              TurnStatusPanel(
+                kind: TurnStatusKind.active,
+                title: 'Sua vez',
+                subtitle: 'Toque em uma carta para jogar.',
+              ),
+              const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
@@ -56,126 +65,85 @@ class HandScreen extends StatelessWidget {
                 label: const Text('Ver Mesa'),
               ),
               const SizedBox(height: 24),
-              ...currentPlayer.hand.map((card) {
-                return Card(
-                  color: const Color(0xFF221229),
-                  child: ListTile(
-                    title: Text(
-                      card.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFE7C76F),
+              GameCardCarousel(
+                cards: currentPlayer.hand,
+                cardWidth: 180,
+                onCardTap: (card) async {
+                  final shouldPlay = await showGameCardPreviewDialog(
+                    context: context,
+                    card: card,
+                  );
+
+                  if (!shouldPlay) {
+                    return;
+                  }
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  final isFirstTurnOfRound = gameState.players.every(
+                    (player) => player.playedCards.isEmpty,
+                  );
+                  final isFirstSceneCard =
+                      card.templateId == 'primeiro_na_cena';
+
+                  if (isFirstTurnOfRound && !isFirstSceneCard) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'A primeira carta da rodada deve ser Primeiro na Cena.',
+                        ),
                       ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(card.shortText),
-                    ),
-                    trailing: FilledButton(
-                      onPressed: () async {
-                        final isFirstTurnOfRound = gameState.players.every(
-                          (player) => player.playedCards.isEmpty,
-                        );
-                        final isFirstSceneCard =
-                            card.templateId == 'primeiro_na_cena';
+                    );
+                    return;
+                  }
 
-                        if (isFirstTurnOfRound && !isFirstSceneCard) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'A primeira carta da rodada deve ser Primeiro na Cena.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
+                  final isGuiltyCard = card.templateId == 'culpado';
+                  final isLastCardInHand = currentPlayer.hand.length == 1;
+                  final hasSealedCards = playerHasSealedCards(currentPlayer);
 
-                        final isGuiltyCard = card.templateId == 'culpado';
-                        final isLastCardInHand = currentPlayer.hand.length == 1;
-                        final hasSealedCards = playerHasSealedCards(
-                          currentPlayer,
-                        );
+                  if (isGuiltyCard && (!isLastCardInHand || hasSealedCards)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Você só pode jogar o Culpado como última carta da mão e sem Carta Selada bloqueada à sua frente.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
 
-                        if (isGuiltyCard &&
-                            (!isLastCardInHand || hasSealedCards)) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Você só pode jogar o Culpado como última carta da mão e sem Carta Selada bloqueada à sua frente.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
+                  if (isDirectQuestionCardBlocked(
+                    gameState: gameState,
+                    card: card,
+                  )) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
 
-                        final shouldPlay = await showDialog<bool>(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: Text(card.name),
-                              content: Text(
-                                '${card.shortText}\n\nDeseja jogar esta carta?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop(false);
-                                  },
-                                  child: const Text('Cancelar'),
-                                ),
-                                FilledButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop(true);
-                                  },
-                                  child: const Text('Jogar'),
-                                ),
-                              ],
-                            );
-                          },
-                        );
+                  final actingPlayerId = gameState.currentPlayer.id;
 
-                        if (shouldPlay != true) {
-                          return;
-                        }
+                  playCard(gameState: gameState, card: card);
 
-                        if (!context.mounted) {
-                          return;
-                        }
+                  if (!context.mounted) {
+                    return;
+                  }
 
-                        if (isDirectQuestionCardBlocked(
-                          gameState: gameState,
-                          card: card,
-                        )) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Silêncio na Mansão está ativo. Detetive e Totó não podem fazer perguntas diretas agora.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final actingPlayerId = gameState.currentPlayer.id;
-
-                        playCard(gameState: gameState, card: card);
-
-                        if (!context.mounted) {
-                          return;
-                        }
-
-                        continueAfterPlayedCard(
-                          context: context,
-                          gameState: gameState,
-                          actingPlayerId: actingPlayerId,
-                          card: card,
-                        );
-                      },
-                      child: const Text('Jogar'),
-                    ),
-                  ),
-                );
-              }),
+                  continueAfterPlayedCard(
+                    context: context,
+                    gameState: gameState,
+                    actingPlayerId: actingPlayerId,
+                    card: card,
+                  );
+                },
+              ),
             ],
           ),
         ),

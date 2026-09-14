@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
+import '../widgets/game_card_carousel.dart';
+import '../widgets/game_card_preview_dialog.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'played_card_effect_router.dart';
@@ -94,57 +96,50 @@ class _ThreeDestiniesEffectScreenState
                           ),
                         ),
                         const SizedBox(height: 12),
-                        ...offeredCards.map((card) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: OutlinedButton(
-                              onPressed: () {
-                                final currentPlayer = widget.gameState.players
-                                    .firstWhere(
-                                      (player) =>
-                                          player.id == widget.actingPlayerId,
-                                    );
-                                final discardedCards = offeredCards
-                                    .where((item) => item.id != card.id)
-                                    .toList();
+                        GameCardCarousel(
+                          cards: offeredCards,
+                          cardWidth: 150,
+                          onCardTap: (card) async {
+                            final shouldPlay = await showGameCardPreviewDialog(
+                              context: context,
+                              card: card,
+                              closeLabel: 'Cancelar',
+                            );
 
-                                placeCardsAsNoEffect(
-                                  player: currentPlayer,
-                                  cards: discardedCards,
-                                );
-                                playExternalCard(
-                                  gameState: widget.gameState,
-                                  card: card,
-                                );
+                            if (!shouldPlay) {
+                              return;
+                            }
 
-                                continueAfterPlayedCard(
-                                  context: context,
-                                  gameState: widget.gameState,
-                                  actingPlayerId: widget.actingPlayerId,
-                                  card: card,
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            final currentPlayer = widget.gameState.players
+                                .firstWhere(
+                                  (player) =>
+                                      player.id == widget.actingPlayerId,
                                 );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      card.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(card.shortText),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
+                            final discardedCards = offeredCards
+                                .where((item) => item.id != card.id)
+                                .toList();
+
+                            placeCardsAsNoEffect(
+                              player: currentPlayer,
+                              cards: discardedCards,
+                            );
+                            playExternalCard(
+                              gameState: widget.gameState,
+                              card: card,
+                            );
+
+                            continueAfterPlayedCard(
+                              context: context,
+                              gameState: widget.gameState,
+                              actingPlayerId: widget.actingPlayerId,
+                              card: card,
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),

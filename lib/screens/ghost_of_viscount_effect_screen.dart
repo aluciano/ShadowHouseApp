@@ -4,6 +4,7 @@ import '../engine/game_engine.dart';
 import '../models/game_card.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../widgets/game_card_carousel.dart';
 import '../widgets/shadow_background.dart';
 import 'pass_device_screen.dart';
 import 'played_card_effect_router.dart';
@@ -106,53 +107,40 @@ class _GhostOfViscountEffectScreenState
                           ),
                         ),
                         const SizedBox(height: 12),
-                        ...availableCards.map((source) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: OutlinedButton(
-                              onPressed: () {
-                                if (source.card.templateId ==
-                                    'fantasma_do_visconde') {
-                                  setState(() {
-                                    copiedGhostAgain = true;
-                                  });
-                                  return;
-                                }
+                        GameCardCarousel(
+                          cards: availableCards.map((source) {
+                            return source.card;
+                          }).toList(),
+                          cardWidth: 132,
+                          labelBuilder: (card) {
+                            final source = availableCards.firstWhere(
+                              (source) => source.card.id == card.id,
+                            );
 
-                                playExternalCard(
-                                  gameState: widget.gameState,
-                                  card: source.card,
-                                  addCardToCurrentPlayerTable: false,
-                                );
+                            return '${card.name} - ${source.owner.name}';
+                          },
+                          onCardTap: (card) {
+                            if (card.templateId == 'fantasma_do_visconde') {
+                              setState(() {
+                                copiedGhostAgain = true;
+                              });
+                              return;
+                            }
 
-                                continueAfterPlayedCard(
-                                  context: context,
-                                  gameState: widget.gameState,
-                                  actingPlayerId: widget.actingPlayerId,
-                                  card: source.card,
-                                );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${source.card.name} - ${source.owner.name}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(source.card.shortText),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
+                            playExternalCard(
+                              gameState: widget.gameState,
+                              card: card,
+                              addCardToCurrentPlayerTable: false,
+                            );
+
+                            continueAfterPlayedCard(
+                              context: context,
+                              gameState: widget.gameState,
+                              actingPlayerId: widget.actingPlayerId,
+                              card: card,
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
